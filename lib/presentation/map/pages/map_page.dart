@@ -6,8 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:gov_gis_map/core/utils/arcgis_extensions.dart';
 import 'package:gov_gis_map/domain/entities/gis_feature.dart';
 import 'package:gov_gis_map/presentation/map/bloc/map_bloc.dart';
-import 'package:gov_gis_map/data/repositories/map_repository_impl.dart';
-import 'package:gov_gis_map/data/datasources/remote/arcgis_remote_datasource.dart';
+import 'dart:async';
 
 class MapPage extends StatefulWidget {
   final PortalItem? portalItem;
@@ -19,14 +18,22 @@ class MapPage extends StatefulWidget {
 
 class _MapPageState extends State<MapPage> {
   ArcGISMapViewController? _mapController;
+
+
+  StreamSubscription? _locationSubscription;
+  final _locationDataSource = SystemLocationDataSource();
   late final ArcGISMap _map;
+
+  bool _isGettingLocation = false;
+
+  String? _locationStatus;
   final String _layerUrl = 'https://services8.arcgis.com/OFjCtQPTf3SnshL1/arcgis/rest/services/Pole/FeatureServer/0';
 
   @override
   void initState() {
     super.initState();
     debugPrint('Initializing MapPage');
-
+    final bloc = context.read<MapBloc>();
     if (widget.portalItem != null) {
       _map = ArcGISMap.withItem(widget.portalItem!);
       debugPrint('PortalItem ID: ${widget.portalItem!.itemId}');
@@ -39,7 +46,23 @@ class _MapPageState extends State<MapPage> {
     }
 
     _map.load().then((_) async {
+      bloc.add(PageInitialized());
       debugPrint('Map loaded successfully. Operational layers: ${_map.operationalLayers.length}');
+      
+      // Ensure shared table instances are used if possible
+      for (var i = 0; i < _map.operationalLayers.length; i++) {
+        final layer = _map.operationalLayers[i];
+        if (layer is FeatureLayer) {
+           final table = layer.featureTable;
+           if (table is ServiceFeatureTable) {
+             final sharedTable = await bloc.mapRepository.getServiceFeatureTable(table.uri.toString());
+             if (sharedTable != table) {
+               _map.operationalLayers[i] = FeatureLayer.withFeatureTable(sharedTable);
+             }
+           }
+        }
+      }
+
       for (final layer in _map.operationalLayers) {
         debugPrint('Layer Name: ${layer.name}, Layer Type: ${layer.runtimeType}');
         if (layer is FeatureLayer) {
@@ -60,11 +83,19 @@ class _MapPageState extends State<MapPage> {
       }
     });
   }
-
+  @override
+  void dispose() {
+    _locationSubscription?.cancel();
+    _mapController?.dispose();
+    super.dispose();
+  }
   void _onMapCreated() {
     debugPrint('Map creation complete. Loading map resources...');
     _map.load().then((_) async {
       debugPrint('Map loaded successfully. Checking for editable layers...');
+  
+      await _startUserLocation();
+
       final featureLayers = _map.operationalLayers.whereType<FeatureLayer>();
       
       for (final layer in featureLayers) {
@@ -87,7 +118,78 @@ class _MapPageState extends State<MapPage> {
       }
     });
   }
+  Future<void> _startUserLocation() async {
+    if (!mounted) return;
 
+    setState(() {
+      _isGettingLocation = true;
+      _locationStatus = 'Getting GPS location...';
+    });
+
+    try {
+      debugPrint('Starting user location...');
+
+      _mapController?.locationDisplay.dataSource =
+          _locationDataSource;
+
+      _mapController?.locationDisplay.autoPanMode =
+          LocationDisplayAutoPanMode.recenter;
+
+      await _locationDataSource.start();
+
+      _locationSubscription?.cancel();
+
+      _locationSubscription =
+          _locationDataSource.onLocationChanged.listen(
+                (location) async {
+              final position = location.position;
+
+              if (!mounted) return;
+
+              await _mapController?.setViewpointCenter(
+                position,
+                scale: 10000,
+              );
+
+              if (mounted) {
+                setState(() {
+                  _isGettingLocation = false;
+                  _locationStatus = 'GPS location acquired';
+                });
+
+                // Hide success message after a short delay.
+                Future.delayed(const Duration(seconds: 2), () {
+                  if (!mounted) return;
+
+                  setState(() {
+                    _locationStatus = null;
+                  });
+                });
+              }
+            },
+          );
+
+      debugPrint('User location started successfully.');
+    } on ArcGISException catch (e) {
+      debugPrint('Location error: ${e.message}');
+
+      if (mounted) {
+        setState(() {
+          _isGettingLocation = false;
+          _locationStatus = 'GPS unavailable';
+        });
+      }
+    } catch (e) {
+      debugPrint('Location error: $e');
+
+      if (mounted) {
+        setState(() {
+          _isGettingLocation = false;
+          _locationStatus = 'GPS unavailable';
+        });
+      }
+    }
+  }
   FeatureLayer? get _firstEditableLayer {
     try {
       return _map.operationalLayers.whereType<FeatureLayer>().firstWhere(
@@ -121,23 +223,27 @@ class _MapPageState extends State<MapPage> {
       if (layerResult.geoElements.isNotEmpty) {
         final element = layerResult.geoElements.first;
         if (element is Feature) {
+          final table = element.featureTable as ServiceFeatureTable;
+          final objectIdField = table.objectIdField;
           final gisFeature = GisFeature(
-            id: element.attributes['OBJECTID']?.toString() ?? '',
+            id: element.attributes[objectIdField]?.toString() ?? '',
             geometry: element.geometry,
             attributes: Map<String, dynamic>.from(element.attributes),
           );
-          _showFeatureAttributes(gisFeature);
+          if (layerResult.layerContent is FeatureLayer) {
+            _showFeatureAttributes(gisFeature, layerResult.layerContent as FeatureLayer);
+          }
         }
       }
     }
   }
 
-  void _showFeatureAttributes(GisFeature feature) {
+  void _showFeatureAttributes(GisFeature feature, FeatureLayer layer) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => _FeatureDetailsSheet(feature: feature),
+      builder: (context) => _FeatureDetailsSheet(feature: feature, layer: layer),
     );
   }
 
@@ -152,16 +258,51 @@ class _MapPageState extends State<MapPage> {
     }
   }
 
+  Future<void> _goToMyLocation() async {
+    try {
+      final locationDisplay = _mapController?.locationDisplay;
+
+      if (!locationDisplay!.started) {
+        await locationDisplay.dataSource.start();
+      }
+
+      locationDisplay.autoPanMode =
+          LocationDisplayAutoPanMode.recenter;
+
+      debugPrint('Moving camera to user location...');
+    } catch (e) {
+      debugPrint('Unable to get user location: $e');
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Unable to get current location'),
+          ),
+        );
+      }
+    }
+  }
   void _captureLocation() async {
     final controller = _mapController;
     if (controller == null) return;
-    
+
     final visibleArea = controller.visibleArea;
     final extent = visibleArea?.extent;
     final center = extent?.center;
-    
+
     if (center != null) {
       context.read<MapBloc>().add(LocationCaptured(center));
+    }
+  }
+
+  void _refreshLayers() async {
+    for (final layer in _map.operationalLayers) {
+      if (layer is FeatureLayer) {
+        final table = layer.featureTable;
+        if (table is ServiceFeatureTable) {
+          // Force a redraw if needed. In SDK 300.x, shared instances usually update.
+        }
+      }
     }
   }
 
@@ -173,14 +314,44 @@ class _MapPageState extends State<MapPage> {
         actions: [
           IconButton(
             icon: const Icon(Icons.sync),
+            tooltip: 'Sync',
             onPressed: () {
               final bloc = context.read<MapBloc>();
-              bloc.add(LoadMapData(_layerUrl));
+
+              bloc.add(
+                RefreshMapRequested(
+                  layerUrl: _layerUrl,
+                ),
+              );
             },
           ),
         ],
       ),
+
       body: BlocListener<MapBloc, MapState>(
+        listenWhen: (previous, current) {
+          // Always listen for errors
+          if (current is MapError) {
+            return true;
+          }
+
+          // Listen when entering fillingForm
+          if (current is CollectionState &&
+              current.mode == CollectionMode.fillingForm) {
+            return previous is! CollectionState ||
+                previous.mode != CollectionMode.fillingForm;
+          }
+
+          // Listen when feature submission is completed
+          if (current is CollectionState &&
+              current.mode == CollectionMode.viewDetails) {
+            return true;
+          }
+
+          return false;
+        },
+
+
         listener: (context, state) {
           if (state is MapError) {
             ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -194,8 +365,11 @@ class _MapPageState extends State<MapPage> {
           if (state is CollectionState && state.mode == CollectionMode.viewDetails) {
             if (mounted) {
               Navigator.pop(context); // Pop form if open
-              _showFeatureAttributes(state.draftFeature!);
+              _showFeatureAttributes(state.draftFeature!, state.targetLayer!);
             }
+          }
+          if (state is MapInitial || state is MapLoaded) {
+            _refreshLayers();
           }
         },
         child: Stack(
@@ -208,7 +382,7 @@ class _MapPageState extends State<MapPage> {
               onMapViewReady: _onMapCreated,
               onTap: (offset) => _identifyFeature(offset),
             ),
-            
+
             // Crosshair Overlay (Changed to Blue for better visibility)
             BlocBuilder<MapBloc, MapState>(
               builder: (context, state) {
@@ -235,10 +409,10 @@ class _MapPageState extends State<MapPage> {
               right: 24,
               child: BlocBuilder<MapBloc, MapState>(
                 builder: (context, state) {
-                  bool isPicking = state is CollectionState && 
-                                  (state.mode == CollectionMode.pickingLocation || 
+                  bool isPicking = state is CollectionState &&
+                                  (state.mode == CollectionMode.pickingLocation ||
                                    state.mode == CollectionMode.fillingForm);
-                  
+
                   return Column(
                     children: [
                       if (!isPicking)
@@ -251,6 +425,7 @@ class _MapPageState extends State<MapPage> {
                       FloatingActionButton(
                         heroTag: 'my_location',
                         onPressed: () {
+                          _goToMyLocation();
                           // TODO: Implement actual zoom to location logic
                         },
                         child: const Icon(Icons.my_location),
@@ -289,17 +464,18 @@ class _MapPageState extends State<MapPage> {
   }
 
   void _showCollectionForm(BuildContext context) {
+    final bloc = context.read<MapBloc>();
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) => const _FeatureCollectionForm(),
     ).then((_) {
-       // Handle cancel if user dismisses sheet manually
-       final bloc = context.read<MapBloc>();
-       if (bloc.state is CollectionState && (bloc.state as CollectionState).mode == CollectionMode.fillingForm) {
-         // bloc.add(CancelCollection()); 
-       }
+      // Reset collection/edit state when the form is dismissed.
+      if (bloc.state is CollectionState &&
+          (bloc.state as CollectionState).mode == CollectionMode.fillingForm) {
+        bloc.add(CancelCollection());
+      }
     });
   }
 }
@@ -312,13 +488,13 @@ class _FeatureCollectionForm extends StatefulWidget {
 }
 
 class _FeatureCollectionFormState extends State<_FeatureCollectionForm> {
-  final Map<String, TextEditingController> _controllers = {};
+  //final Map<String, TextEditingController> _controllers = {};
 
   @override
   void dispose() {
-    for (var controller in _controllers.values) {
-      controller.dispose();
-    }
+    // for (var controller in _controllers.values) {
+    //   controller.dispose();
+    // }
     super.dispose();
   }
 
@@ -347,7 +523,7 @@ class _FeatureCollectionFormState extends State<_FeatureCollectionForm> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text('New Feature', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+                    Text(state.isEdit ? 'Edit Feature' : 'New Feature', style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
                     if (state.mode == CollectionMode.submitting)
                       const CircularProgressIndicator()
                     else
@@ -452,6 +628,7 @@ class _FeatureCollectionFormState extends State<_FeatureCollectionForm> {
         padding: const EdgeInsets.only(bottom: 16.0),
         child: GestureDetector(
           onTap: () async {
+            final bloc = context.read<MapBloc>();
             final initialDate = selectedDate != null
                 ? DateTime(
               selectedDate.year,
@@ -474,7 +651,7 @@ class _FeatureCollectionFormState extends State<_FeatureCollectionForm> {
                 day: pickedDate.day,
               );
 
-              context.read<MapBloc>().add(
+              bloc.add(
                 UpdateDraftAttributes({
                   field.name: dateOnly,
                 }),
@@ -507,22 +684,10 @@ class _FeatureCollectionFormState extends State<_FeatureCollectionForm> {
       );
 
     } else {
-      if (!_controllers.containsKey(field.name)) {
-        _controllers[field.name] = TextEditingController(text: draft.attributes[field.name]?.toString() ?? '');
-      }
-      return Padding(
-        padding: const EdgeInsets.only(bottom: 16.0),
-        child: TextField(
-          controller: _controllers[field.name],
-          style: const TextStyle(color: Colors.white),
-          decoration: InputDecoration(
-            labelText: field.alias.isNotEmpty ? field.alias : field.name,
-            labelStyle: const TextStyle(color: Colors.grey),
-            enabledBorder: const UnderlineInputBorder(borderSide: BorderSide(color: Colors.grey)),
-            focusedBorder: const UnderlineInputBorder(borderSide: BorderSide(color: Colors.blue)),
-          ),
-          onChanged: (val) => context.read<MapBloc>().add(UpdateDraftAttributes({field.name: val})),
-        ),
+      return _CollectionTextField(
+        key: ValueKey(field.name),
+        field: field,
+        draft: draft,
       );
     }
   }
@@ -567,10 +732,73 @@ class _FeatureCollectionFormState extends State<_FeatureCollectionForm> {
     }
   }
 }
+class _CollectionTextField extends StatefulWidget {
+  final Field field;
+  final GisFeature draft;
 
+  const _CollectionTextField({
+    super.key,
+    required this.field,
+    required this.draft,
+  });
+
+  @override
+  State<_CollectionTextField> createState() =>
+      _CollectionTextFieldState();
+}
+
+class _CollectionTextFieldState extends State<_CollectionTextField> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _controller = TextEditingController(
+      text: widget.draft.attributes[widget.field.name]?.toString() ?? '',
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16.0),
+      child: TextField(
+        controller: _controller,
+        style: const TextStyle(color: Colors.white),
+        decoration: InputDecoration(
+          labelText: widget.field.alias.isNotEmpty
+              ? widget.field.alias
+              : widget.field.name,
+          labelStyle: const TextStyle(color: Colors.grey),
+          enabledBorder: const UnderlineInputBorder(
+            borderSide: BorderSide(color: Colors.grey),
+          ),
+          focusedBorder: const UnderlineInputBorder(
+            borderSide: BorderSide(color: Colors.blue),
+          ),
+        ),
+        onChanged: (val) {
+          context.read<MapBloc>().add(
+            UpdateDraftAttributes({
+              widget.field.name: val,
+            }),
+          );
+        },
+      ),
+    );
+  }
+}
 class _FeatureDetailsSheet extends StatelessWidget {
   final GisFeature feature;
-  const _FeatureDetailsSheet({required this.feature});
+  final FeatureLayer layer;
+  const _FeatureDetailsSheet({required this.feature, required this.layer});
 
   @override
   Widget build(BuildContext context) {
@@ -587,22 +815,26 @@ class _FeatureDetailsSheet extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(feature.attributes['Type'] ?? 'Feature', style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+              Text(feature.attributes['pole_id'] ?? feature.attributes['Type'] ?? 'Feature', style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
               IconButton(icon: const Icon(Icons.close, color: Colors.white), onPressed: () => Navigator.pop(context)),
             ],
           ),
           const Divider(color: Colors.grey),
           
           // Details
-          ...feature.attributes.entries.map((e) => Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4.0),
-            child: Row(
-              children: [
-                Text('${e.key}: ', style: const TextStyle(color: Colors.grey)),
-                Text('${e.value}', style: const TextStyle(color: Colors.white)),
-              ],
-            ),
-          )),
+          ...['pole_id', 'pole_type', 'condition', 'status', 'remarks', 'survey_date'].map((key) {
+            final value = feature.attributes[key];
+            if (value == null) return const SizedBox.shrink();
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4.0),
+              child: Row(
+                children: [
+                  Text('$key: ', style: const TextStyle(color: Colors.grey)),
+                  Expanded(child: Text('$value', style: const TextStyle(color: Colors.white))),
+                ],
+              ),
+            );
+          }),
           
           const SizedBox(height: 24),
           
@@ -611,12 +843,64 @@ class _FeatureDetailsSheet extends StatelessWidget {
             spacing: 16,
             runSpacing: 16,
             children: [
-              _ActionButton(icon: Icons.edit, label: 'Edit', onTap: () {}),
-              _ActionButton(icon: Icons.copy, label: 'Copy', onTap: () {}),
-              _ActionButton(icon: Icons.add_location, label: 'Collect Here', onTap: () {}),
+              _ActionButton(
+                icon: Icons.edit, 
+                label: 'Edit', 
+                onTap: () {
+                  Navigator.pop(context);
+                  context.read<MapBloc>().add(EditFeatureRequested(feature, layer));
+                }
+              ),
+              _ActionButton(
+                icon: Icons.copy, 
+                label: 'Copy', 
+                onTap: () {
+                  Navigator.pop(context);
+                  context.read<MapBloc>().add(CopyFeatureRequested(feature, layer));
+                }
+              ),
+              _ActionButton(
+                icon: Icons.add_location, 
+                label: 'Collect Here', 
+                onTap: () {
+                  Navigator.pop(context);
+                  context.read<MapBloc>().add(CollectHereRequested(feature, layer));
+                }
+              ),
               _ActionButton(icon: Icons.directions, label: 'Directions', onTap: () {}),
-              _ActionButton(icon: Icons.delete, label: 'Delete', color: Colors.red, onTap: () {}),
+              _ActionButton(
+                icon: Icons.delete, 
+                label: 'Delete', 
+                color: Colors.red, 
+                onTap: () => _confirmDelete(context),
+              ),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmDelete(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: const Color(0xFF1E1E1E),
+        title: const Text('Delete Feature?', style: TextStyle(color: Colors.white)),
+        content: const Text('This action cannot be undone.', style: TextStyle(color: Colors.grey)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('CANCEL'),
+          ),
+          TextButton(
+            onPressed: () {
+              final bloc = context.read<MapBloc>();
+              Navigator.pop(dialogContext); // Close dialog
+              Navigator.pop(context);       // Close sheet
+              bloc.add(DeleteFeatureRequested(feature, layer));
+            },
+            child: const Text('DELETE', style: TextStyle(color: Colors.red)),
           ),
         ],
       ),

@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:arcgis_maps/arcgis_maps.dart';
 import 'package:gov_gis_map/presentation/map/bloc/portal_bloc.dart';
 import 'package:gov_gis_map/app/router/app_router.dart';
+import 'package:gov_gis_map/data/datasources/service/arcgis_auth_service.dart';
 
 class MapSelectionPage extends StatelessWidget {
   const MapSelectionPage({super.key});
@@ -17,7 +18,70 @@ class MapSelectionPage extends StatelessWidget {
           centerTitle: false,
           actions: [
             IconButton(icon: const Icon(Icons.search), onPressed: () {}),
-            IconButton(icon: const Icon(Icons.account_circle), onPressed: () {}),
+            IconButton(
+              icon: const Icon(Icons.account_circle),
+              onPressed: () async {
+                final authService = ArcGISAuthService();
+                final portal = await authService.getAuthenticatedPortal();
+
+                if (!context.mounted) return;
+
+                final user = portal.user;
+
+                showDialog(
+                  context: context,
+                  builder: (dialogContext) {
+                    return AlertDialog(
+                      title: const Text('Profile'),
+                      content: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Username',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(user?.username ?? 'Unknown'),
+
+                          const SizedBox(height: 16),
+
+                          Text(
+                            'User ID',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(user?.userId ?? 'Unknown'),
+                        ],
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () async {
+                            Navigator.pop(dialogContext);
+
+                            await authService.logout();
+
+                            if (!context.mounted) return;
+
+                            Navigator.of(context).pushNamedAndRemoveUntil(
+                              AppRouter.login,
+                                  (route) => false,
+                            );
+                          },
+                          child: const Text('Sign Out'),
+                        ),
+                      ],
+                    );
+                  },
+                );
+              },
+            ),
           ],
         ),
         body: BlocBuilder<PortalBloc, PortalState>(

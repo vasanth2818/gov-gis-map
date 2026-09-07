@@ -24,6 +24,11 @@ class MapRepositoryImpl implements MapRepository {
   }
 
   @override
+  Future<ServiceFeatureTable> getServiceFeatureTable(String layerUrl) {
+    return remoteDataSource.getFeatureTable(layerUrl);
+  }
+
+  @override
   Future<void> addFeature(String layerUrl, GisFeature feature) {
     return remoteDataSource.addFeature(layerUrl, feature);
   }

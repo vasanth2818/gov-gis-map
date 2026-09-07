@@ -57,8 +57,40 @@ class SubmitDraftFeature extends MapEvent {}
 
 class CancelCollection extends MapEvent {}
 
+class PageInitialized extends MapEvent {}
+
+class EditFeatureRequested extends MapEvent {
+  final GisFeature feature;
+  final FeatureLayer layer;
+  EditFeatureRequested(this.feature, this.layer);
+}
+
+class CopyFeatureRequested extends MapEvent {
+  final GisFeature feature;
+  final FeatureLayer layer;
+  CopyFeatureRequested(this.feature, this.layer);
+}
+
+class CollectHereRequested extends MapEvent {
+  final GisFeature feature;
+  final FeatureLayer layer;
+  CollectHereRequested(this.feature, this.layer);
+}
+
+class DeleteFeatureRequested extends MapEvent {
+  final GisFeature feature;
+  final FeatureLayer layer;
+  DeleteFeatureRequested(this.feature, this.layer);
+}
+
+class RefreshMapRequested extends MapEvent {
+  final String? layerUrl;
+  RefreshMapRequested({this.layerUrl});
+}
+
+
 // States
-enum CollectionMode { idle, pickingLocation, fillingForm, submitting, viewDetails }
+enum CollectionMode { idle, pickingLocation, fillingForm, submitting, viewDetails, editing, copying, collectingHere, deleting }
 
 abstract class MapState extends Equatable {
   @override
@@ -92,6 +124,7 @@ class CollectionState extends MapState {
   final GisFeature? draftFeature;
   final List<Field> editableFields;
   final String? errorMessage;
+  final bool isEdit;
 
   CollectionState({
     required this.mode,
@@ -99,6 +132,7 @@ class CollectionState extends MapState {
     this.draftFeature,
     this.editableFields = const [],
     this.errorMessage,
+    this.isEdit = false,
   });
 
   factory CollectionState.error(String message) {
@@ -108,15 +142,16 @@ class CollectionState extends MapState {
     );
   }
 
-  factory CollectionState.success(List<Field> fields) {
+  factory CollectionState.success(List<Field> fields, {bool isEdit = false}) {
     return CollectionState(
       mode: CollectionMode.fillingForm,
       editableFields: fields,
+      isEdit: isEdit,
     );
   }
 
   @override
-  List<Object?> get props => [mode, targetLayer, draftFeature, editableFields, errorMessage];
+  List<Object?> get props => [mode, targetLayer, draftFeature, editableFields, errorMessage, isEdit];
 
   CollectionState copyWith({
     CollectionMode? mode,
@@ -124,6 +159,7 @@ class CollectionState extends MapState {
     GisFeature? draftFeature,
     List<Field>? editableFields,
     String? errorMessage,
+    bool? isEdit,
   }) {
     return CollectionState(
       mode: mode ?? this.mode,
@@ -131,6 +167,7 @@ class CollectionState extends MapState {
       draftFeature: draftFeature ?? this.draftFeature,
       editableFields: editableFields ?? this.editableFields,
       errorMessage: errorMessage ?? this.errorMessage,
+      isEdit: isEdit ?? this.isEdit,
     );
   }
 }
@@ -265,7 +302,12 @@ class MapBloc extends Bloc<MapEvent, MapState> {
         emit(current.copyWith(mode: CollectionMode.submitting));
         try {
           final url = (layer.featureTable as ServiceFeatureTable).uri.toString();
-          await mapRepository.addFeature(url, feature);
+          if (current.isEdit) {
+            await mapRepository.updateFeature(url, feature);
+          } else {
+            await mapRepository.addFeature(url, feature);
+          }
+          add(RefreshMapRequested(layerUrl: url));
           emit(current.copyWith(mode: CollectionMode.viewDetails));
         } catch (e) {
           emit(current.copyWith(mode: CollectionMode.fillingForm, errorMessage: e.toString()));
@@ -273,7 +315,103 @@ class MapBloc extends Bloc<MapEvent, MapState> {
       }
     });
 
+    on<EditFeatureRequested>((event, emit) async {
+      try {
+        final table = event.layer.featureTable!;
+        await table.load();
+        final editableFields = _getCollectionFields(table);
+        
+        emit(CollectionState(
+          mode: CollectionMode.fillingForm,
+          targetLayer: event.layer,
+          editableFields: editableFields,
+          draftFeature: event.feature,
+          isEdit: true,
+        ));
+      } catch (e) {
+        emit(MapError('Failed to start editing: $e'));
+      }
+    });
+
+    on<CopyFeatureRequested>((event, emit) async {
+      try {
+        final table = event.layer.featureTable!;
+        await table.load();
+        final editableFields = _getCollectionFields(table);
+        
+        // Filter attributes to only include editable ones
+        final newAttributes = <String, dynamic>{};
+        for (var field in editableFields) {
+          if (event.feature.attributes.containsKey(field.name)) {
+            newAttributes[field.name] = event.feature.attributes[field.name];
+          }
+        }
+
+        emit(CollectionState(
+          mode: CollectionMode.fillingForm,
+          targetLayer: event.layer,
+          editableFields: editableFields,
+          draftFeature: GisFeature(
+            id: '', 
+            geometry: event.feature.geometry,
+            attributes: newAttributes,
+          ),
+          isEdit: false,
+        ));
+      } catch (e) {
+        emit(MapError('Failed to copy feature: $e'));
+      }
+    });
+
+    on<CollectHereRequested>((event, emit) async {
+      try {
+        final table = event.layer.featureTable!;
+        await table.load();
+        final editableFields = _getCollectionFields(table);
+        
+        emit(CollectionState(
+          mode: CollectionMode.fillingForm,
+          targetLayer: event.layer,
+          editableFields: editableFields,
+          draftFeature: GisFeature(
+            id: '', 
+            geometry: event.feature.geometry,
+            attributes: {},
+          ),
+          isEdit: false,
+        ));
+      } catch (e) {
+        emit(MapError('Failed to collect here: $e'));
+      }
+    });
+
+    on<DeleteFeatureRequested>((event, emit) async {
+      try {
+        final url = (event.layer.featureTable as ServiceFeatureTable).uri.toString();
+        await mapRepository.deleteFeature(url, event.feature.id);
+        add(RefreshMapRequested(layerUrl: url));
+        emit(MapInitial());
+      } catch (e) {
+        emit(MapError('Failed to delete feature: $e'));
+      }
+    });
+
+    on<RefreshMapRequested>((event, emit) async {
+      if (event.layerUrl != null) {
+        add(LoadMapData(event.layerUrl!));
+      } else if (state is MapLoaded) {
+        // Find the URL from existing state if possible, or just re-emit MapInitial to trigger refresh in UI
+        emit(MapInitial());
+      } else {
+        emit(MapInitial());
+      }
+    });
+
     on<CancelCollection>((event, emit) {
+      debugPrint('CancelCollection event received');
+      emit(MapInitial());
+    });
+    on<PageInitialized>((event, emit) {
       emit(MapInitial());
     });
   }

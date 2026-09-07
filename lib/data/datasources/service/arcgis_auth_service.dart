@@ -73,6 +73,16 @@ class ArcGISAuthService {
     return credentials.isNotEmpty;
   }
 
+  Future<Portal> getAuthenticatedPortal() async {
+    final portal = Portal.arcGISOnline(
+      connection: PortalConnection.authenticated,
+    );
+
+    await portal.load();
+
+    return portal;
+  }
+
   Future<List<PortalItem>> fetchUserWebMaps() async {
     log('Fetching user web maps');
 
