@@ -1,0 +1,8 @@
+include: ../linter_rules.yaml 
+
+exclude:
+  - build/**
+  - ios/.symlinks/**
+  - macos/Flutter/ephemeral/.symlinks/**
+  - linux/flutter/ephemeral/.plugin_symlinks/**
+  - windows/flutter/ephemeral/.plugin_symlinks/**

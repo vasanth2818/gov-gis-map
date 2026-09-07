@@ -1,0 +1,26 @@
+name: arcgis_maps_toolkit_example
+description: A series of example apps that demonstrate how to use the ArcGIS Maps SDK for Flutter Toolkit.
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.12.1 <4.0.0'
+
+dependencies:
+  arcgis_maps: ^300.1.0
+  arcgis_maps_toolkit:
+    path: ../
+  flutter:
+    sdk: flutter
+
+dev_dependencies:
+  flutter_lints: ^6.0.0
+  flutter_test:
+    sdk: flutter
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/basemap_default.png
+  config:
+    enable-swift-package-manager: true
