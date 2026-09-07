@@ -22,27 +22,71 @@ class ArcGISRemoteDataSource {
   Future<void> addFeature(String url, GisFeature feature) async {
     try {
       final table = await getFeatureTable(url);
+
+      debugPrint('Creating new ArcGIS feature...');
+
       final arcgisFeature = table.createFeature(
         attributes: feature.attributes,
         geometry: feature.geometry,
       ) as ArcGISFeature;
 
-      // Add attachments if any
-      for (var file in feature.attachments) {
+      debugPrint('Adding feature to local ServiceFeatureTable...');
+
+      // IMPORTANT:
+      // createFeature() only creates the feature in memory.
+      // addFeature() adds it to the table's local edit cache.
+      await table.addFeature(arcgisFeature);
+
+      debugPrint('Feature added locally.');
+
+      // Add attachments after the feature has been added
+      // to the table.
+      for (final file in feature.attachments) {
         final bytes = await file.readAsBytes();
+
+        final extension = file.path.split('.').last.toLowerCase();
+
+        String contentType;
+
+        switch (extension) {
+          case 'jpg':
+          case 'jpeg':
+            contentType = 'image/jpeg';
+            break;
+          case 'png':
+            contentType = 'image/png';
+            break;
+          case 'pdf':
+            contentType = 'application/pdf';
+            break;
+          default:
+            contentType = 'application/octet-stream';
+        }
+
+        debugPrint(
+          'Adding attachment: ${file.path.split('/').last} '
+              '($contentType)',
+        );
+
         await arcgisFeature.addAttachment(
           name: file.path.split('/').last,
-          contentType: 'image/jpeg', // Defaulting to jpeg for simplicity
+          contentType: contentType,
           data: bytes,
         );
       }
 
-      // Apply edits to persist to server
-      if (table is ServiceFeatureTable) {
-        await table.applyEdits();
-      }
-    } catch (e) {
+      debugPrint('Applying edits to ArcGIS Online...');
+
+      final editResults = await table.applyEdits();
+
+      debugPrint(
+        'Apply edits completed. Result count: ${editResults.length}',
+      );
+
+      debugPrint('Feature successfully saved to ArcGIS Online.');
+    } catch (e, stackTrace) {
       debugPrint('Error adding feature: $e');
+      debugPrint('$stackTrace');
       rethrow;
     }
   }

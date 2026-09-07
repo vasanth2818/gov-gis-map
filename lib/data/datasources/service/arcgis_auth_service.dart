@@ -1,66 +1,119 @@
 import 'dart:developer';
+
 import 'package:arcgis_maps/arcgis_maps.dart';
-import 'package:arcgis_maps_toolkit/arcgis_maps_toolkit.dart';
 
 class ArcGISAuthService {
-  Future<void> login() async {
-    log('Starting ArcGIS login process');
-    
-    // Attempting to load the portal with an authenticated connection
-    // will trigger an ArcGISAuthenticationChallenge if not already authenticated.
-    // The Authenticator widget in app.dart will catch this and show the login UI.
-    final portal = Portal.arcGISOnline(connection: PortalConnection.authenticated);
-    
-    try {
-      await portal.load();
-      log('Portal loaded successfully: ${portal.user?.fullName}');
-    } catch (e) {
-      log('Error during login: $e');
-      rethrow;
-    }
+  static const String _portalUrl =
+      'https://vasanth-gis.maps.arcgis.com';
+
+  static const String _clientId =
+      'J2aU21TR7GpPuiwk';
+
+  static const String _redirectUrl =
+      'my-gis-app://auth';
+
+  final OAuthUserConfiguration _configuration =
+  OAuthUserConfiguration(
+    portalUri: Uri.parse(_portalUrl),
+    clientId: _clientId,
+    redirectUri: Uri.parse(_redirectUrl),
+  );
+
+  Future<OAuthUserCredential> login() async {
+    log('Starting ArcGIS OAuth login');
+
+    final credential = await OAuthUserCredential.create(
+      configuration: _configuration,
+    );
+
+    ArcGISEnvironment
+        .authenticationManager
+        .arcGISCredentialStore
+        .add(
+      credential: credential,
+    );
+
+    log('ArcGIS OAuth login successful');
+
+    return credential;
   }
 
   Future<void> logout() async {
-    log('Starting logout process');
-    
-    // Toolkit provides helper methods for revoking and clearing tokens
-    await Authenticator.revokeOAuthTokens();
-    await Authenticator.clearCredentials();
-    
-    // Clear the HTTP cache to ensure fresh state
-    ArcGISEnvironment.httpClient.cache.evictAll();
-    
-    log('Logout process completed');
+    log('Starting ArcGIS logout');
+
+    final credentials = ArcGISEnvironment
+        .authenticationManager
+        .arcGISCredentialStore
+        .getCredentials();
+
+    for (final credential in credentials) {
+      if (credential is OAuthUserCredential) {
+        try {
+          await credential.revokeToken();
+        } catch (e) {
+          log('Token revoke failed: $e');
+        }
+      }
+    }
+
+    ArcGISEnvironment
+        .authenticationManager
+        .arcGISCredentialStore
+        .removeAll();
+
+    log('ArcGIS logout completed');
   }
 
   bool get isAuthenticated {
-    final credentials = ArcGISEnvironment.authenticationManager.arcGISCredentialStore.getCredentials();
+    final credentials = ArcGISEnvironment
+        .authenticationManager
+        .arcGISCredentialStore
+        .getCredentials();
+
     return credentials.isNotEmpty;
   }
 
   Future<List<PortalItem>> fetchUserWebMaps() async {
     log('Fetching user web maps');
-    final portal = Portal.arcGISOnline(connection: PortalConnection.authenticated);
-    await portal.load();
-    
-    final queryParams = PortalQueryParameters(
-      query: 'owner:${portal.user?.username} type:"Web Map"',
+
+    final portal = Portal.arcGISOnline(
+      connection: PortalConnection.authenticated,
     );
 
-    final result = await portal.findItems(parameters: queryParams);
-    // Load metadata and thumbnails for all items in parallel
-    await Future.wait(result.results.map((item) async {
-      try {
-        await item.load();
-        if (item.thumbnail != null) {
-          await item.thumbnail!.load();
-        }
-      } catch (e) {
-        log('Error loading item ${item.itemId}: $e');
-      }
-    }));
-    
-    log('Found ${result.results.length} web maps');
+    await portal.load();
+
+    log('Authenticated user: ${portal.user?.username}');
+
+    final queryParams = PortalQueryParameters(
+      query: 'id:eee6c5fb0c87465d8d44a802f3c9353d',
+    );
+
+    final result = await portal.findItems(
+      parameters: queryParams,
+    );
+
+    await Future.wait(
+      result.results.map(
+        (item) async {
+          try {
+            await item.load();
+
+            if (item.thumbnail != null) {
+              await item.thumbnail!.load();
+            }
+          } catch (e) {
+            log(
+              'Error loading item ${item.itemId}: $e',
+            );
+          }
+        },
+      ),
+    );
+
+    log(
+      'Found ${result.results.length} web maps',
+    );
+
     return result.results;
   }
 }

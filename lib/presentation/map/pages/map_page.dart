@@ -20,7 +20,7 @@ class MapPage extends StatefulWidget {
 class _MapPageState extends State<MapPage> {
   ArcGISMapViewController? _mapController;
   late final ArcGISMap _map;
-  final String _layerUrl = 'https://services.arcgis.com/P3ePLMYs2RVChqkv/arcgis/rest/services/Luminaries/FeatureServer/0';
+  final String _layerUrl = 'https://services8.arcgis.com/OFjCtQPTf3SnshL1/arcgis/rest/services/Pole/FeatureServer/0';
 
   @override
   void initState() {
@@ -29,11 +29,36 @@ class _MapPageState extends State<MapPage> {
 
     if (widget.portalItem != null) {
       _map = ArcGISMap.withItem(widget.portalItem!);
+      debugPrint('PortalItem ID: ${widget.portalItem!.itemId}');
+      debugPrint('PortalItem Title: ${widget.portalItem!.title}');
     } else {
       _map = ArcGISMap.withBasemapStyle(BasemapStyle.arcGISImageryStandard);
       final featureLayer = FeatureLayerExtension.fromUrl(Uri.parse(_layerUrl));
       _map.operationalLayers.add(featureLayer);
+      debugPrint('Using fallback layer URL: $_layerUrl');
     }
+
+    _map.load().then((_) async {
+      debugPrint('Map loaded successfully. Operational layers: ${_map.operationalLayers.length}');
+      for (final layer in _map.operationalLayers) {
+        debugPrint('Layer Name: ${layer.name}, Layer Type: ${layer.runtimeType}');
+        if (layer is FeatureLayer) {
+          await layer.load();
+          final table = layer.featureTable;
+          if (table != null) {
+            debugPrint('FeatureLayer Name: ${layer.name}');
+            debugPrint('FeatureTable Type: ${table.runtimeType}');
+            if (table is ServiceFeatureTable) {
+              debugPrint('FeatureTable URI: ${table.uri}');
+              await table.load();
+              for (final field in table.fields) {
+                debugPrint('Field Name: ${field.name}, Display Name: ${field.alias}, Type: ${field.type}');
+              }
+            }
+          }
+        }
+      }
+    });
   }
 
   void _onMapCreated() {
@@ -420,6 +445,67 @@ class _FeatureCollectionFormState extends State<_FeatureCollectionForm> {
           context.read<MapBloc>().add(UpdateDraftAttributes({field.name: val}));
         },
       );
+    } else if (field.type == FieldType.dateOnly) {
+      final selectedDate = draft.attributes[field.name] as DateOnly?;
+
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 16.0),
+        child: GestureDetector(
+          onTap: () async {
+            final initialDate = selectedDate != null
+                ? DateTime(
+              selectedDate.year,
+              selectedDate.month,
+              selectedDate.day,
+            )
+                : DateTime.now();
+
+            final pickedDate = await showDatePicker(
+              context: context,
+              initialDate: initialDate,
+              firstDate: DateTime(1900),
+              lastDate: DateTime(2100),
+            );
+
+            if (pickedDate != null) {
+              final dateOnly = DateOnly.withYearMonthDay(
+                year: pickedDate.year,
+                month: pickedDate.month,
+                day: pickedDate.day,
+              );
+
+              context.read<MapBloc>().add(
+                UpdateDraftAttributes({
+                  field.name: dateOnly,
+                }),
+              );
+            }
+          },
+          child: InputDecorator(
+            decoration: InputDecoration(
+              labelText: field.alias.isNotEmpty
+                  ? field.alias
+                  : field.name,
+              labelStyle: const TextStyle(color: Colors.grey),
+              enabledBorder: const UnderlineInputBorder(
+                borderSide: BorderSide(color: Colors.grey),
+              ),
+              focusedBorder: const UnderlineInputBorder(
+                borderSide: BorderSide(color: Colors.blue),
+              ),
+            ),
+            child: Text(
+              selectedDate != null
+                  ? '${selectedDate.day.toString().padLeft(2, '0')}/'
+                  '${selectedDate.month.toString().padLeft(2, '0')}/'
+                  '${selectedDate.year}'
+                  : 'Select Date',
+              style: const TextStyle(color: Colors.white),
+            ),
+          ),
+        ),
+      );
+
     } else {
       if (!_controllers.containsKey(field.name)) {
         _controllers[field.name] = TextEditingController(text: draft.attributes[field.name]?.toString() ?? '');

@@ -101,6 +101,20 @@ class CollectionState extends MapState {
     this.errorMessage,
   });
 
+  factory CollectionState.error(String message) {
+    return CollectionState(
+      mode: CollectionMode.idle,
+      errorMessage: message,
+    );
+  }
+
+  factory CollectionState.success(List<Field> fields) {
+    return CollectionState(
+      mode: CollectionMode.fillingForm,
+      editableFields: fields,
+    );
+  }
+
   @override
   List<Object?> get props => [mode, targetLayer, draftFeature, editableFields, errorMessage];
 
@@ -177,11 +191,14 @@ class MapBloc extends Bloc<MapEvent, MapState> {
           return;
         }
 
-        final editableFields = table.fields.where((f) => f.editable && !f.nullable).toList();
+        final editableFields = _getCollectionFields(table);
+
         if (editableFields.isEmpty) {
-          debugPrint('No required editable fields found for ${layer.name}. Falling back to first 5.');
-          editableFields.addAll(table.fields.where((f) => f.editable).take(5));
+          emit(CollectionState.error('No editable fields available for collection.'));
+          return;
         }
+
+        emit(CollectionState.success(editableFields));
 
         debugPrint('Emitting CollectionState for layer: ${layer.name}');
         emit(CollectionState(
@@ -209,11 +226,20 @@ class MapBloc extends Bloc<MapEvent, MapState> {
     on<UpdateDraftAttributes>((event, emit) {
       if (state is CollectionState) {
         final current = state as CollectionState;
-        final newAttributes = Map<String, dynamic>.from(current.draftFeature?.attributes ?? {});
+
+        final newAttributes = Map<String, dynamic>.from(
+          current.draftFeature?.attributes ?? {},
+        );
+
         newAttributes.addAll(event.attributes);
-        emit(current.copyWith(
-          draftFeature: current.draftFeature?.copyWith(attributes: newAttributes),
-        ));
+
+        emit(
+          current.copyWith(
+            draftFeature: current.draftFeature?.copyWith(
+              attributes: newAttributes,
+            ),
+          ),
+        );
       }
     });
 
@@ -250,5 +276,18 @@ class MapBloc extends Bloc<MapEvent, MapState> {
     on<CancelCollection>((event, emit) {
       emit(MapInitial());
     });
+  }
+
+  List<Field> _getCollectionFields(FeatureTable table) {
+    // Exclude system and GNSS fields
+    final excludedPrefixes = ['esrignss_', 'esrisnsr_'];
+    final excludedNames = ['OBJECTID', 'GlobalID', 'CreationDate', 'Creator', 'EditDate', 'Editor'];
+
+    return table.fields.where((field) {
+      final name = field.name;
+      // Exclude fields with specific prefixes or names
+      final isExcluded = excludedPrefixes.any((prefix) => name.startsWith(prefix)) || excludedNames.contains(name);
+      return !isExcluded && field.editable;
+    }).toList();
   }
 }
