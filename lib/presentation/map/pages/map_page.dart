@@ -2,7 +2,9 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:arcgis_maps/arcgis_maps.dart';
+import 'package:arcgis_maps_toolkit/arcgis_maps_toolkit.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:gov_gis_map/core/utils/arcgis_extensions.dart';
 import 'package:gov_gis_map/domain/entities/gis_feature.dart';
 import 'package:gov_gis_map/presentation/map/bloc/map_bloc.dart';
@@ -118,8 +120,63 @@ class _MapPageState extends State<MapPage> {
       }
     });
   }
+  Future<bool> _checkLocationRequirements() async {
+    if (!mounted) return false;
+
+    // Check if location services are enabled at the system level
+    final serviceStatus = await Permission.location.serviceStatus;
+    if (serviceStatus.isDisabled) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Location services are disabled. Please turn on GPS/Location in your device settings.'),
+            duration: const Duration(seconds: 5),
+            action: SnackBarAction(label: 'OK', onPressed: () {}),
+          ),
+        );
+        setState(() {
+          _isGettingLocation = false;
+          _locationStatus = 'GPS Disabled';
+        });
+      }
+      return false;
+    }
+
+    // Check location permission
+    var status = await Permission.locationWhenInUse.status;
+    if (status.isDenied) {
+      status = await Permission.locationWhenInUse.request();
+    }
+
+    if (status.isPermanentlyDenied) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Location permission is permanently denied. Please enable it in settings.'),
+            action: SnackBarAction(label: 'SETTINGS', onPressed: openAppSettings),
+          ),
+        );
+      }
+      return false;
+    }
+
+    if (!status.isGranted) {
+      if (mounted) {
+        setState(() {
+          _isGettingLocation = false;
+          _locationStatus = 'Permission denied';
+        });
+      }
+      return false;
+    }
+
+    return true;
+  }
+
   Future<void> _startUserLocation() async {
     if (!mounted) return;
+
+    if (!await _checkLocationRequirements()) return;
 
     setState(() {
       _isGettingLocation = true;
@@ -259,14 +316,16 @@ class _MapPageState extends State<MapPage> {
   }
 
   Future<void> _goToMyLocation() async {
+    if (!await _checkLocationRequirements()) return;
+
     try {
       final locationDisplay = _mapController?.locationDisplay;
 
-      if (!locationDisplay!.started) {
+      if (locationDisplay != null && !locationDisplay.started) {
         await locationDisplay.dataSource.start();
       }
 
-      locationDisplay.autoPanMode =
+      locationDisplay?.autoPanMode =
           LocationDisplayAutoPanMode.recenter;
 
       debugPrint('Moving camera to user location...');
@@ -311,7 +370,9 @@ class _MapPageState extends State<MapPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Government Field Survey'),
+
         actions: [
+          // Sync
           IconButton(
             icon: const Icon(Icons.sync),
             tooltip: 'Sync',
@@ -324,6 +385,56 @@ class _MapPageState extends State<MapPage> {
                 ),
               );
             },
+          ),
+
+          // Layers
+          IconButton(
+            icon: const Icon(Icons.layers),
+            tooltip: 'Layers',
+            onPressed: _showLayersSheet,
+          ),
+
+          // More menu
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert),
+            tooltip: 'More',
+            onSelected: (value) {
+              switch (value) {
+                case 'basemap':
+                  _showBasemapGallery();
+                  break;
+
+                case 'extent':
+                  _goToDefaultMapExtent();
+                  break;
+
+                case 'legend':
+                  _showComingSoon('Legend');
+                  break;
+
+                case 'measure':
+                  _showComingSoon('Measure');
+                  break;
+
+                case 'markup':
+                  _showComingSoon('Personal markup');
+                  break;
+
+                case 'share':
+                  _showComingSoon('Share map');
+                  break;
+              }
+            },
+            itemBuilder: (context) => const [
+              PopupMenuItem(
+                value: 'basemap',
+                child: Text('Basemap'),
+              ),
+              PopupMenuItem(
+                value: 'extent',
+                child: Text('Default map extent'),
+              ),
+            ],
           ),
         ],
       ),
@@ -463,6 +574,277 @@ class _MapPageState extends State<MapPage> {
     );
   }
 
+  List<BasemapGalleryItem> _buildBasemapItems() {
+    final styles = <MapEntry<String, BasemapStyle>>[
+      MapEntry('Imagery', BasemapStyle.arcGISImagery),
+      MapEntry('Imagery Standard', BasemapStyle.arcGISImageryStandard),
+      MapEntry('Streets', BasemapStyle.arcGISStreets),
+      MapEntry('Navigation', BasemapStyle.arcGISNavigation),
+      MapEntry('Topographic', BasemapStyle.arcGISTopographic),
+      MapEntry('Oceans', BasemapStyle.arcGISOceans),
+      MapEntry('Light Gray', BasemapStyle.arcGISLightGray),
+      MapEntry('Dark Gray', BasemapStyle.arcGISDarkGray),
+    ];
+
+    return styles.map((entry) {
+      final basemap = Basemap.withStyle(entry.value);
+
+      return BasemapGalleryItem(
+        basemap: basemap,
+        tooltip: entry.key,
+      );
+    }).toList();
+  }
+
+
+  void _showBasemapGallery() {
+    final portal = Portal.arcGISOnline(
+      connection: PortalConnection.authenticated,
+    );
+
+    final controller = BasemapGalleryController.withPortal(
+      portal,
+      geoModel: _map,
+    );
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) {
+        return SizedBox(
+          height: MediaQuery.of(context).size.height * 0.75,
+          child: BasemapGallery(
+            controller: controller,
+          ),
+        );
+      },
+    ).whenComplete(controller.dispose);
+  }
+
+  void _showLayersSheet() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFF1E1E1E),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(16),
+        ),
+      ),
+      builder: (context) {
+        final operationalLayers = _map.operationalLayers.toList();
+
+        final baseLayers = _map.basemap?.baseLayers.toList() ?? <Layer>[];
+
+        final referenceLayers = _map.basemap?.referenceLayers.toList() ?? <Layer>[];
+
+        return SafeArea(
+          child: SizedBox(
+            height: MediaQuery.of(context).size.height * 0.75,
+            child: ListView(
+              padding: const EdgeInsets.only(
+                top: 16,
+                bottom: 24,
+              ),
+              children: [
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 20),
+                  child: Text(
+                    'Layers',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 20),
+
+                _buildLayerSectionTitle('On device layers'),
+
+                _buildStaticLayerTile(
+                  icon: Icons.edit_location_alt,
+                  title: 'Personal markup',
+                  checked: true,
+                ),
+
+                const SizedBox(height: 12),
+
+                _buildLayerSectionTitle('Map layers'),
+
+                if (operationalLayers.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 12,
+                    ),
+                    child: Text(
+                      'No map layers',
+                      style: TextStyle(
+                        color: Colors.grey,
+                      ),
+                    ),
+                  )
+                else
+                  ...operationalLayers.map(
+                    _buildOperationalLayerTile,
+                  ),
+
+                const SizedBox(height: 12),
+
+                _buildLayerSectionTitle('Basemap layers'),
+
+                if (baseLayers.isEmpty && referenceLayers.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 12,
+                    ),
+                    child: Text(
+                      'No basemap layers',
+                      style: TextStyle(
+                        color: Colors.grey,
+                      ),
+                    ),
+                  )
+                else ...[
+                  ...baseLayers.map(
+                    _buildBasemapLayerTile,
+                  ),
+                  ...referenceLayers.map(
+                    _buildBasemapLayerTile,
+                  ),
+                ],
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildLayerSectionTitle(String title) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
+      child: Text(
+        title,
+        style: const TextStyle(
+          color: Colors.grey,
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStaticLayerTile({
+    required IconData icon,
+    required String title,
+    required bool checked,
+  }) {
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 20),
+      leading: Icon(
+        icon,
+        color: Colors.blueGrey,
+        size: 30,
+      ),
+      title: Text(
+        title,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 16,
+        ),
+      ),
+      trailing: Checkbox(
+        value: checked,
+        onChanged: null,
+      ),
+    );
+  }
+
+  Widget _buildOperationalLayerTile(Layer layer) {
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 20),
+      leading: const Icon(
+        Icons.layers_outlined,
+        color: Colors.blueGrey,
+        size: 30,
+      ),
+      title: Text(
+        layer.name.isNotEmpty ? layer.name : 'Untitled layer',
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 16,
+        ),
+      ),
+      trailing: Checkbox(
+        value: layer.isVisible,
+        onChanged: (value) {
+          if (value == null) return;
+
+          setState(() {
+            layer.isVisible = value;
+          });
+        },
+      ),
+    );
+  }
+
+  Widget _buildBasemapLayerTile(Layer layer) {
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 20),
+      leading: const Icon(
+        Icons.public,
+        color: Colors.orange,
+        size: 30,
+      ),
+      title: Text(
+        layer.name.isNotEmpty ? layer.name : 'Basemap',
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 16,
+        ),
+      ),
+      trailing: Checkbox(
+        value: layer.isVisible,
+        onChanged: (value) {
+          if (value == null) return;
+
+          setState(() {
+            layer.isVisible = value;
+          });
+        },
+      ),
+    );
+  }
+
+  void _goToDefaultMapExtent() {
+    final viewpoint = _map.initialViewpoint;
+
+    if (viewpoint == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Default map extent is not available.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    _mapController?.setViewpoint(viewpoint);
+  }
+
+  void _showComingSoon(String feature) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('$feature is not implemented yet.'),
+      ),
+    );
+  }
+
   void _showCollectionForm(BuildContext context) {
     final bloc = context.read<MapBloc>();
     showModalBottomSheet(
@@ -567,7 +949,7 @@ class _FeatureCollectionFormState extends State<_FeatureCollectionForm> {
                         style: OutlinedButton.styleFrom(foregroundColor: Colors.white, side: const BorderSide(color: Colors.grey)),
                         icon: const Icon(Icons.attach_file),
                         label: const Text('ATTACH'),
-                        onPressed: () {},
+                        onPressed: _attachFile,
                       ),
                     ),
                   ],
@@ -595,7 +977,9 @@ class _FeatureCollectionFormState extends State<_FeatureCollectionForm> {
                             right: 8,
                             child: IconButton(
                               icon: const Icon(Icons.remove_circle, color: Colors.red),
-                              onPressed: () {},
+                              onPressed: () {
+                                context.read<MapBloc>().add(RemoveDraftAttachment(index));
+                              },
                             ),
                           )
                         ],
@@ -729,6 +1113,14 @@ class _FeatureCollectionFormState extends State<_FeatureCollectionForm> {
     final photo = await picker.pickImage(source: ImageSource.camera, imageQuality: 80);
     if (photo != null && mounted) {
       context.read<MapBloc>().add(AddDraftAttachment(File(photo.path)));
+    }
+  }
+
+  void _attachFile() async {
+    final picker = ImagePicker();
+    final image = await picker.pickImage(source: ImageSource.gallery, imageQuality: 80);
+    if (image != null && mounted) {
+      context.read<MapBloc>().add(AddDraftAttachment(File(image.path)));
     }
   }
 }
@@ -896,11 +1288,18 @@ class _FeatureDetailsSheet extends StatelessWidget {
           TextButton(
             onPressed: () {
               final bloc = context.read<MapBloc>();
-              Navigator.pop(dialogContext); // Close dialog
-              Navigator.pop(context);       // Close sheet
-              bloc.add(DeleteFeatureRequested(feature, layer));
+
+              Navigator.pop(dialogContext);
+              Navigator.pop(context);
+
+              bloc.add(
+                DeleteFeatureRequested(feature, layer),
+              );
             },
-            child: const Text('DELETE', style: TextStyle(color: Colors.red)),
+            child: const Text(
+              'DELETE',
+              style: TextStyle(color: Colors.red),
+            ),
           ),
         ],
       ),

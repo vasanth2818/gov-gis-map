@@ -52,6 +52,14 @@ class AddDraftAttachment extends MapEvent {
   final File file;
   AddDraftAttachment(this.file);
 }
+class RemoveDraftAttachment extends MapEvent {
+  final int index;
+
+  RemoveDraftAttachment(this.index);
+
+  @override
+  List<Object?> get props => [index];
+}
 
 class SubmitDraftFeature extends MapEvent {}
 
@@ -288,6 +296,29 @@ class MapBloc extends Bloc<MapEvent, MapState> {
         emit(current.copyWith(
           draftFeature: current.draftFeature?.copyWith(attachments: newAttachments),
         ));
+      }
+    });
+
+    on<RemoveDraftAttachment>((event, emit) {
+      if (state is CollectionState) {
+        final current = state as CollectionState;
+
+        final attachments =
+        List<File>.from(current.draftFeature?.attachments ?? []);
+
+        if (event.index < 0 || event.index >= attachments.length) {
+          return;
+        }
+
+        attachments.removeAt(event.index);
+
+        emit(
+          current.copyWith(
+            draftFeature: current.draftFeature?.copyWith(
+              attachments: attachments,
+            ),
+          ),
+        );
       }
     });
 

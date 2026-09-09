@@ -4,7 +4,7 @@ import 'package:arcgis_maps/arcgis_maps.dart';
 
 class ArcGISAuthService {
   static const String _portalUrl =
-      'https://vasanth-gis.maps.arcgis.com';
+      'https://www.arcgis.com';
 
   static const String _clientId =
       'J2aU21TR7GpPuiwk';
