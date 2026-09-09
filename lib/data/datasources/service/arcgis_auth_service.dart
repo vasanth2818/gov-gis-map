@@ -95,7 +95,9 @@ class ArcGISAuthService {
     log('Authenticated user: ${portal.user?.username}');
 
     final queryParams = PortalQueryParameters(
-      query: 'id:eee6c5fb0c87465d8d44a802f3c9353d',
+      query: 'type:"Web Map" AND owner:"${portal.user?.username}"',
+      sortField: 'title',
+      sortOrder: PortalQuerySortOrder.ascending,
     );
 
     final result = await portal.findItems(

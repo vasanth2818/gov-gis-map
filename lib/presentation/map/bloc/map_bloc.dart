@@ -43,6 +43,8 @@ class LocationCaptured extends MapEvent {
   LocationCaptured(this.geometry);
 }
 
+class BeginLocationUpdate extends MapEvent {}
+
 class UpdateDraftAttributes extends MapEvent {
   final Map<String, dynamic> attributes;
   UpdateDraftAttributes(this.attributes);
@@ -52,11 +54,10 @@ class AddDraftAttachment extends MapEvent {
   final File file;
   AddDraftAttachment(this.file);
 }
+
 class RemoveDraftAttachment extends MapEvent {
   final int index;
-
   RemoveDraftAttachment(this.index);
-
   @override
   List<Object?> get props => [index];
 }
@@ -133,6 +134,7 @@ class CollectionState extends MapState {
   final List<Field> editableFields;
   final String? errorMessage;
   final bool isEdit;
+  final bool isNewFeature;
 
   CollectionState({
     required this.mode,
@@ -141,6 +143,7 @@ class CollectionState extends MapState {
     this.editableFields = const [],
     this.errorMessage,
     this.isEdit = false,
+    this.isNewFeature = false,
   });
 
   factory CollectionState.error(String message) {
@@ -159,7 +162,15 @@ class CollectionState extends MapState {
   }
 
   @override
-  List<Object?> get props => [mode, targetLayer, draftFeature, editableFields, errorMessage, isEdit];
+  List<Object?> get props => [
+    mode,
+    targetLayer,
+    draftFeature,
+    editableFields,
+    errorMessage,
+    isEdit,
+    isNewFeature,
+  ];
 
   CollectionState copyWith({
     CollectionMode? mode,
@@ -168,6 +179,7 @@ class CollectionState extends MapState {
     List<Field>? editableFields,
     String? errorMessage,
     bool? isEdit,
+    bool? isNewFeature,
   }) {
     return CollectionState(
       mode: mode ?? this.mode,
@@ -176,6 +188,7 @@ class CollectionState extends MapState {
       editableFields: editableFields ?? this.editableFields,
       errorMessage: errorMessage ?? this.errorMessage,
       isEdit: isEdit ?? this.isEdit,
+      isNewFeature: isNewFeature ?? this.isNewFeature,
     );
   }
 }
@@ -215,7 +228,7 @@ class MapBloc extends Bloc<MapEvent, MapState> {
 
     on<StartCollectionRequested>((event, emit) async {
       final layer = event.layer;
-      
+
       try {
         final table = layer.featureTable;
 
@@ -243,14 +256,12 @@ class MapBloc extends Bloc<MapEvent, MapState> {
           return;
         }
 
-        emit(CollectionState.success(editableFields));
-
-        debugPrint('Emitting CollectionState for layer: ${layer.name}');
         emit(CollectionState(
           mode: CollectionMode.pickingLocation,
           targetLayer: layer,
           editableFields: editableFields,
           draftFeature: GisFeature(id: '', attributes: {}),
+          isNewFeature: true,
         ));
       } catch (e) {
         debugPrint('Error starting collection: $e');
@@ -258,13 +269,41 @@ class MapBloc extends Bloc<MapEvent, MapState> {
       }
     });
 
+    on<BeginLocationUpdate>((event, emit) {
+      if (state is CollectionState) {
+        final current = state as CollectionState;
+
+        // Only the new-feature capture flow can return to map
+        // location selection. Existing Edit/Copy/Collect Here flows
+        // are intentionally untouched.
+        if (!current.isNewFeature ||
+            current.draftFeature?.geometry == null) {
+          return;
+        }
+
+        emit(
+          current.copyWith(
+            mode: CollectionMode.pickingLocation,
+          ),
+        );
+      }
+    });
+
     on<LocationCaptured>((event, emit) {
       if (state is CollectionState) {
         final current = state as CollectionState;
-        emit(current.copyWith(
-          mode: CollectionMode.fillingForm,
-          draftFeature: current.draftFeature?.copyWith(geometry: event.geometry),
-        ));
+
+        // LocationCaptured only updates the pending draft geometry.
+        // It never creates a feature. The final SubmitDraftFeature
+        // event is responsible for the single insert.
+        emit(
+          current.copyWith(
+            mode: CollectionMode.fillingForm,
+            draftFeature: current.draftFeature?.copyWith(
+              geometry: event.geometry,
+            ),
+          ),
+        );
       }
     });
 
@@ -302,9 +341,9 @@ class MapBloc extends Bloc<MapEvent, MapState> {
     on<RemoveDraftAttachment>((event, emit) {
       if (state is CollectionState) {
         final current = state as CollectionState;
-
-        final attachments =
-        List<File>.from(current.draftFeature?.attachments ?? []);
+        final attachments = List<File>.from(
+          current.draftFeature?.attachments ?? [],
+        );
 
         if (event.index < 0 || event.index >= attachments.length) {
           return;
@@ -351,7 +390,7 @@ class MapBloc extends Bloc<MapEvent, MapState> {
         final table = event.layer.featureTable!;
         await table.load();
         final editableFields = _getCollectionFields(table);
-        
+
         emit(CollectionState(
           mode: CollectionMode.fillingForm,
           targetLayer: event.layer,
@@ -369,7 +408,7 @@ class MapBloc extends Bloc<MapEvent, MapState> {
         final table = event.layer.featureTable!;
         await table.load();
         final editableFields = _getCollectionFields(table);
-        
+
         // Filter attributes to only include editable ones
         final newAttributes = <String, dynamic>{};
         for (var field in editableFields) {
@@ -383,7 +422,7 @@ class MapBloc extends Bloc<MapEvent, MapState> {
           targetLayer: event.layer,
           editableFields: editableFields,
           draftFeature: GisFeature(
-            id: '', 
+            id: '',
             geometry: event.feature.geometry,
             attributes: newAttributes,
           ),
@@ -399,13 +438,13 @@ class MapBloc extends Bloc<MapEvent, MapState> {
         final table = event.layer.featureTable!;
         await table.load();
         final editableFields = _getCollectionFields(table);
-        
+
         emit(CollectionState(
           mode: CollectionMode.fillingForm,
           targetLayer: event.layer,
           editableFields: editableFields,
           draftFeature: GisFeature(
-            id: '', 
+            id: '',
             geometry: event.feature.geometry,
             attributes: {},
           ),
