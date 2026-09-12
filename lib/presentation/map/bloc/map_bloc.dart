@@ -5,6 +5,8 @@ import 'package:arcgis_maps/arcgis_maps.dart';
 import 'package:gov_gis_map/domain/entities/gis_feature.dart';
 import 'package:gov_gis_map/domain/repositories/map_repository.dart';
 import 'package:flutter/foundation.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 // Events
 abstract class MapEvent extends Equatable {
@@ -97,34 +99,129 @@ class RefreshMapRequested extends MapEvent {
   RefreshMapRequested({this.layerUrl});
 }
 
+class DownloadOfflineMap extends MapEvent {
+  final ArcGISMap onlineMap;
+  final Envelope areaOfInterest;
+  DownloadOfflineMap(this.onlineMap, this.areaOfInterest);
+}
+
+class OpenOfflineMap extends MapEvent {}
+
+class SyncOfflineChanges extends MapEvent {}
+
+class RemoveOfflineMap extends MapEvent {}
+
+class UpdateOfflineProgress extends MapEvent {
+  final double downloadProgress;
+  final double syncProgress;
+  final bool isDownloading;
+  final bool isSyncing;
+  final String? errorMessage;
+  final String? offlineMapPath;
+
+  UpdateOfflineProgress({
+    this.downloadProgress = 0.0,
+    this.syncProgress = 0.0,
+    this.isDownloading = false,
+    this.isSyncing = false,
+    this.errorMessage,
+    this.offlineMapPath,
+  });
+}
 
 // States
 enum CollectionMode { idle, pickingLocation, fillingForm, submitting, viewDetails, editing, copying, collectingHere, deleting }
 
 abstract class MapState extends Equatable {
+  final bool isOfflineMode;
+  final double offlineDownloadProgress;
+  final double offlineSyncProgress;
+  final String? offlineMapPath;
+  final bool isDownloading;
+  final bool isSyncing;
+
+  MapState({
+    this.isOfflineMode = false,
+    this.offlineDownloadProgress = 0.0,
+    this.offlineSyncProgress = 0.0,
+    this.offlineMapPath,
+    this.isDownloading = false,
+    this.isSyncing = false,
+  });
+
   @override
-  List<Object?> get props => [];
+  List<Object?> get props => [
+    isOfflineMode,
+    offlineDownloadProgress,
+    offlineSyncProgress,
+    offlineMapPath,
+    isDownloading,
+    isSyncing,
+  ];
 }
 
-class MapInitial extends MapState {}
-class MapLoading extends MapState {}
+class MapInitial extends MapState {
+  MapInitial({
+    super.isOfflineMode,
+    super.offlineDownloadProgress,
+    super.offlineSyncProgress,
+    super.offlineMapPath,
+    super.isDownloading,
+    super.isSyncing,
+  });
+}
+
+class MapLoading extends MapState {
+  MapLoading({
+    super.isOfflineMode,
+    super.offlineDownloadProgress,
+    super.offlineSyncProgress,
+    super.offlineMapPath,
+    super.isDownloading,
+    super.isSyncing,
+  });
+}
+
 class MapLoaded extends MapState {
   final List<GisFeature> features;
-  MapLoaded(this.features);
+  MapLoaded(this.features, {
+    super.isOfflineMode,
+    super.offlineDownloadProgress,
+    super.offlineSyncProgress,
+    super.offlineMapPath,
+    super.isDownloading,
+    super.isSyncing,
+  });
   @override
-  List<Object?> get props => [features];
+  List<Object?> get props => [features, ...super.props];
 }
+
 class FeatureSelected extends MapState {
   final GisFeature feature;
-  FeatureSelected(this.feature);
+  FeatureSelected(this.feature, {
+    super.isOfflineMode,
+    super.offlineDownloadProgress,
+    super.offlineSyncProgress,
+    super.offlineMapPath,
+    super.isDownloading,
+    super.isSyncing,
+  });
   @override
-  List<Object?> get props => [feature];
+  List<Object?> get props => [feature, ...super.props];
 }
+
 class MapError extends MapState {
   final String message;
-  MapError(this.message);
+  MapError(this.message, {
+    super.isOfflineMode,
+    super.offlineDownloadProgress,
+    super.offlineSyncProgress,
+    super.offlineMapPath,
+    super.isDownloading,
+    super.isSyncing,
+  });
   @override
-  List<Object?> get props => [message];
+  List<Object?> get props => [message, ...super.props];
 }
 
 class CollectionState extends MapState {
@@ -144,20 +241,28 @@ class CollectionState extends MapState {
     this.errorMessage,
     this.isEdit = false,
     this.isNewFeature = false,
+    super.isOfflineMode,
+    super.offlineDownloadProgress,
+    super.offlineSyncProgress,
+    super.offlineMapPath,
+    super.isDownloading,
+    super.isSyncing,
   });
 
-  factory CollectionState.error(String message) {
+  factory CollectionState.error(String message, {bool isOfflineMode = false}) {
     return CollectionState(
       mode: CollectionMode.idle,
       errorMessage: message,
+      isOfflineMode: isOfflineMode,
     );
   }
 
-  factory CollectionState.success(List<Field> fields, {bool isEdit = false}) {
+  factory CollectionState.success(List<Field> fields, {bool isEdit = false, bool isOfflineMode = false}) {
     return CollectionState(
       mode: CollectionMode.fillingForm,
       editableFields: fields,
       isEdit: isEdit,
+      isOfflineMode: isOfflineMode,
     );
   }
 
@@ -170,6 +275,7 @@ class CollectionState extends MapState {
     errorMessage,
     isEdit,
     isNewFeature,
+    ...super.props,
   ];
 
   CollectionState copyWith({
@@ -180,6 +286,12 @@ class CollectionState extends MapState {
     String? errorMessage,
     bool? isEdit,
     bool? isNewFeature,
+    bool? isOfflineMode,
+    double? offlineDownloadProgress,
+    double? offlineSyncProgress,
+    String? offlineMapPath,
+    bool? isDownloading,
+    bool? isSyncing,
   }) {
     return CollectionState(
       mode: mode ?? this.mode,
@@ -189,6 +301,12 @@ class CollectionState extends MapState {
       errorMessage: errorMessage ?? this.errorMessage,
       isEdit: isEdit ?? this.isEdit,
       isNewFeature: isNewFeature ?? this.isNewFeature,
+      isOfflineMode: isOfflineMode ?? this.isOfflineMode,
+      offlineDownloadProgress: offlineDownloadProgress ?? this.offlineDownloadProgress,
+      offlineSyncProgress: offlineSyncProgress ?? this.offlineSyncProgress,
+      offlineMapPath: offlineMapPath ?? this.offlineMapPath,
+      isDownloading: isDownloading ?? this.isDownloading,
+      isSyncing: isSyncing ?? this.isSyncing,
     );
   }
 }
@@ -199,17 +317,29 @@ class MapBloc extends Bloc<MapEvent, MapState> {
 
   MapBloc({required this.mapRepository}) : super(MapInitial()) {
     on<LoadMapData>((event, emit) async {
-      emit(MapLoading());
+      emit(MapLoading(
+        isOfflineMode: state.isOfflineMode,
+        offlineMapPath: state.offlineMapPath,
+      ));
       try {
         final features = await mapRepository.getFeatures(event.layerUrl);
-        emit(MapLoaded(features));
+        emit(MapLoaded(features,
+          isOfflineMode: state.isOfflineMode,
+          offlineMapPath: state.offlineMapPath,
+        ));
       } catch (e) {
-        emit(MapError(e.toString()));
+        emit(MapError(e.toString(),
+          isOfflineMode: state.isOfflineMode,
+          offlineMapPath: state.offlineMapPath,
+        ));
       }
     });
 
     on<FeatureIdentified>((event, emit) {
-      emit(FeatureSelected(event.feature));
+      emit(FeatureSelected(event.feature,
+        isOfflineMode: state.isOfflineMode,
+        offlineMapPath: state.offlineMapPath,
+      ));
     });
 
     on<AddFeatureRequested>((event, emit) async {
@@ -222,7 +352,10 @@ class MapBloc extends Bloc<MapEvent, MapState> {
         await mapRepository.addFeature(event.layerUrl, newFeature);
         add(LoadMapData(event.layerUrl)); // Refresh
       } catch (e) {
-        emit(MapError(e.toString()));
+        emit(MapError(e.toString(),
+          isOfflineMode: state.isOfflineMode,
+          offlineMapPath: state.offlineMapPath,
+        ));
       }
     });
 
@@ -234,7 +367,10 @@ class MapBloc extends Bloc<MapEvent, MapState> {
 
         if (table == null) {
           debugPrint('Feature table is null for layer: ${layer.name}');
-          emit(MapError('Cannot collect data: Layer "${layer.name}" has no feature table.'));
+          emit(MapError('Cannot collect data: Layer "${layer.name}" has no feature table.',
+            isOfflineMode: state.isOfflineMode,
+            offlineMapPath: state.offlineMapPath,
+          ));
           return;
         }
 
@@ -245,14 +381,19 @@ class MapBloc extends Bloc<MapEvent, MapState> {
         }
 
         if (!table.canAdd()) {
-          emit(MapError('You do not have permission to add features to this layer.'));
+          emit(MapError('You do not have permission to add features to this layer.',
+            isOfflineMode: state.isOfflineMode,
+            offlineMapPath: state.offlineMapPath,
+          ));
           return;
         }
 
         final editableFields = _getCollectionFields(table);
 
         if (editableFields.isEmpty) {
-          emit(CollectionState.error('No editable fields available for collection.'));
+          emit(CollectionState.error('No editable fields available for collection.',
+            isOfflineMode: state.isOfflineMode,
+          ));
           return;
         }
 
@@ -262,10 +403,15 @@ class MapBloc extends Bloc<MapEvent, MapState> {
           editableFields: editableFields,
           draftFeature: GisFeature(id: '', attributes: {}),
           isNewFeature: true,
+          isOfflineMode: state.isOfflineMode,
+          offlineMapPath: state.offlineMapPath,
         ));
       } catch (e) {
         debugPrint('Error starting collection: $e');
-        emit(MapError('Failed to initialize collection: ${e.toString()}'));
+        emit(MapError('Failed to initialize collection: ${e.toString()}',
+          isOfflineMode: state.isOfflineMode,
+          offlineMapPath: state.offlineMapPath,
+        ));
       }
     });
 
@@ -273,9 +419,6 @@ class MapBloc extends Bloc<MapEvent, MapState> {
       if (state is CollectionState) {
         final current = state as CollectionState;
 
-        // Only the new-feature capture flow can return to map
-        // location selection. Existing Edit/Copy/Collect Here flows
-        // are intentionally untouched.
         if (!current.isNewFeature ||
             current.draftFeature?.geometry == null) {
           return;
@@ -293,9 +436,6 @@ class MapBloc extends Bloc<MapEvent, MapState> {
       if (state is CollectionState) {
         final current = state as CollectionState;
 
-        // LocationCaptured only updates the pending draft geometry.
-        // It never creates a feature. The final SubmitDraftFeature
-        // event is responsible for the single insert.
         emit(
           current.copyWith(
             mode: CollectionMode.fillingForm,
@@ -371,14 +511,21 @@ class MapBloc extends Bloc<MapEvent, MapState> {
 
         emit(current.copyWith(mode: CollectionMode.submitting));
         try {
-          final url = (layer.featureTable as ServiceFeatureTable).uri.toString();
+          final table = layer.featureTable;
+          final url = table is ServiceFeatureTable ? table.uri.toString() : '';
+
           if (current.isEdit) {
-            await mapRepository.updateFeature(url, feature);
+            await mapRepository.updateFeature(url, feature, table: table);
           } else {
-            await mapRepository.addFeature(url, feature);
+            await mapRepository.addFeature(url, feature, table: table);
           }
-          add(RefreshMapRequested(layerUrl: url));
-          emit(current.copyWith(mode: CollectionMode.viewDetails));
+
+          if (state.isOfflineMode) {
+            emit(current.copyWith(mode: CollectionMode.viewDetails));
+          } else {
+            add(RefreshMapRequested(layerUrl: url));
+            emit(current.copyWith(mode: CollectionMode.viewDetails));
+          }
         } catch (e) {
           emit(current.copyWith(mode: CollectionMode.fillingForm, errorMessage: e.toString()));
         }
@@ -397,9 +544,14 @@ class MapBloc extends Bloc<MapEvent, MapState> {
           editableFields: editableFields,
           draftFeature: event.feature,
           isEdit: true,
+          isOfflineMode: state.isOfflineMode,
+          offlineMapPath: state.offlineMapPath,
         ));
       } catch (e) {
-        emit(MapError('Failed to start editing: $e'));
+        emit(MapError('Failed to start editing: $e',
+          isOfflineMode: state.isOfflineMode,
+          offlineMapPath: state.offlineMapPath,
+        ));
       }
     });
 
@@ -409,7 +561,6 @@ class MapBloc extends Bloc<MapEvent, MapState> {
         await table.load();
         final editableFields = _getCollectionFields(table);
 
-        // Filter attributes to only include editable ones
         final newAttributes = <String, dynamic>{};
         for (var field in editableFields) {
           if (event.feature.attributes.containsKey(field.name)) {
@@ -427,9 +578,14 @@ class MapBloc extends Bloc<MapEvent, MapState> {
             attributes: newAttributes,
           ),
           isEdit: false,
+          isOfflineMode: state.isOfflineMode,
+          offlineMapPath: state.offlineMapPath,
         ));
       } catch (e) {
-        emit(MapError('Failed to copy feature: $e'));
+        emit(MapError('Failed to copy feature: $e',
+          isOfflineMode: state.isOfflineMode,
+          offlineMapPath: state.offlineMapPath,
+        ));
       }
     });
 
@@ -449,51 +605,282 @@ class MapBloc extends Bloc<MapEvent, MapState> {
             attributes: {},
           ),
           isEdit: false,
+          isOfflineMode: state.isOfflineMode,
+          offlineMapPath: state.offlineMapPath,
         ));
       } catch (e) {
-        emit(MapError('Failed to collect here: $e'));
+        emit(MapError('Failed to collect here: $e',
+          isOfflineMode: state.isOfflineMode,
+          offlineMapPath: state.offlineMapPath,
+        ));
       }
     });
 
     on<DeleteFeatureRequested>((event, emit) async {
       try {
-        final url = (event.layer.featureTable as ServiceFeatureTable).uri.toString();
-        await mapRepository.deleteFeature(url, event.feature.id);
-        add(RefreshMapRequested(layerUrl: url));
-        emit(MapInitial());
+        final table = event.layer.featureTable;
+        final url = table is ServiceFeatureTable ? table.uri.toString() : '';
+        await mapRepository.deleteFeature(url, event.feature.id, table: table);
+
+        if (!state.isOfflineMode) {
+          add(RefreshMapRequested(layerUrl: url));
+        }
+        emit(MapInitial(
+          isOfflineMode: state.isOfflineMode,
+          offlineMapPath: state.offlineMapPath,
+        ));
       } catch (e) {
-        emit(MapError('Failed to delete feature: $e'));
+        emit(MapError('Failed to delete feature: $e',
+          isOfflineMode: state.isOfflineMode,
+          offlineMapPath: state.offlineMapPath,
+        ));
       }
     });
 
     on<RefreshMapRequested>((event, emit) async {
+      if (state.isOfflineMode) return;
+
       if (event.layerUrl != null) {
         add(LoadMapData(event.layerUrl!));
-      } else if (state is MapLoaded) {
-        // Find the URL from existing state if possible, or just re-emit MapInitial to trigger refresh in UI
-        emit(MapInitial());
       } else {
-        emit(MapInitial());
+        emit(MapInitial(
+          isOfflineMode: state.isOfflineMode,
+          offlineMapPath: state.offlineMapPath,
+        ));
       }
     });
 
+    on<DownloadOfflineMap>((event, emit) async {
+      try {
+        final directory = await getApplicationDocumentsDirectory();
+        final downloadPath = '${directory.path}/offline_map';
+
+        final job = await mapRepository.generateOfflineMap(
+          onlineMap: event.onlineMap,
+          areaOfInterest: event.areaOfInterest,
+          downloadPath: downloadPath,
+        );
+
+        add(UpdateOfflineProgress(isDownloading: true));
+
+        job.onProgressChanged.listen((progress) {
+          add(UpdateOfflineProgress(
+            downloadProgress: progress / 100.0,
+            isDownloading: true,
+          ));
+        });
+
+        debugPrint('========== OFFLINE DOWNLOAD STARTED ==========');
+
+        final result = await job.run();
+
+        debugPrint('========== OFFLINE DOWNLOAD FINISHED ==========');
+        debugPrint('HAS ERRORS: ${result.hasErrors}');
+        debugPrint('LAYER ERRORS COUNT: ${result.layerErrors.length}');
+        debugPrint('TABLE ERRORS COUNT: ${result.tableErrors.length}');
+
+        for (final entry in result.layerErrors.entries) {
+          debugPrint(
+            'OFFLINE LAYER ERROR -> "${entry.key.name}": ${entry.value.message}',
+          );
+        }
+
+        for (final entry in result.tableErrors.entries) {
+          debugPrint(
+            'OFFLINE TABLE ERROR -> "${entry.key.tableName}": ${entry.value.message}',
+          );
+        }
+
+        if (result.hasErrors) {
+          final errors = <String>[
+            ...result.layerErrors.entries.map(
+                  (entry) =>
+              'Layer "${entry.key.name}": ${entry.value.message}',
+            ),
+            ...result.tableErrors.entries.map(
+                  (entry) =>
+              'Table "${entry.key.tableName}": ${entry.value.message}',
+            ),
+          ];
+
+          throw Exception(
+            errors.isEmpty
+                ? 'Some map content could not be taken offline.'
+                : errors.join('\n'),
+          );
+        }
+
+        debugPrint('========== OFFLINE DOWNLOAD SUCCESS ==========');
+        debugPrint('OFFLINE MAP PATH: $downloadPath');
+
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('offline_map_path', downloadPath);
+
+        add(UpdateOfflineProgress(
+          downloadProgress: 1.0,
+          isDownloading: false,
+          offlineMapPath: downloadPath,
+        ));
+      } catch (e) {
+        emit(MapError('Failed to download offline map: $e',
+          isOfflineMode: state.isOfflineMode,
+          offlineMapPath: state.offlineMapPath,
+        ));
+        add(UpdateOfflineProgress(isDownloading: false));
+      }
+    });
+
+    on<OpenOfflineMap>((event, emit) async {
+      final prefs = await SharedPreferences.getInstance();
+      final path = prefs.getString('offline_map_path');
+      if (path != null && await Directory(path).exists()) {
+        emit(MapInitial(isOfflineMode: true, offlineMapPath: path));
+      } else {
+        emit(MapError('No offline map found.'));
+      }
+    });
+
+    on<SyncOfflineChanges>((event, emit) async {
+      if (state.offlineMapPath == null) return;
+
+      try {
+        final job = await mapRepository.syncOfflineMap(state.offlineMapPath!);
+        add(UpdateOfflineProgress(isSyncing: true));
+
+        job.onProgressChanged.listen((progress) {
+          add(UpdateOfflineProgress(
+            syncProgress: progress / 100.0,
+            isSyncing: true,
+          ));
+        });
+
+        final result = await job.run();
+
+        if (result.hasErrors) {
+          throw Exception('ArcGIS reported errors while synchronizing the offline map.');
+        }
+
+        add(UpdateOfflineProgress(
+          syncProgress: 1.0,
+          isSyncing: false,
+        ));
+      } catch (e) {
+        emit(MapError('Failed to sync changes: $e',
+          isOfflineMode: state.isOfflineMode,
+          offlineMapPath: state.offlineMapPath,
+        ));
+        add(UpdateOfflineProgress(isSyncing: false));
+      }
+    });
+
+    on<RemoveOfflineMap>((event, emit) async {
+      if (state.offlineMapPath != null) {
+        await mapRepository.removeOfflineMap(state.offlineMapPath!);
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.remove('offline_map_path');
+        emit(MapInitial(isOfflineMode: false));
+      }
+    });
+
+    on<UpdateOfflineProgress>((event, emit) {
+      emit(_mapStateWithOffline(state, event));
+    });
+
     on<CancelCollection>((event, emit) {
-      debugPrint('CancelCollection event received');
-      emit(MapInitial());
+      emit(MapInitial(
+        isOfflineMode: state.isOfflineMode,
+        offlineMapPath: state.offlineMapPath,
+      ));
     });
-    on<PageInitialized>((event, emit) {
-      emit(MapInitial());
-    });
+
+    on<PageInitialized>((event, emit) async {
+      final prefs = await SharedPreferences.getInstance();
+      final path = prefs.getString('offline_map_path');
+
+      emit(MapInitial(
+        offlineMapPath: path,
+        isOfflineMode: state.isOfflineMode,
+      ));
+    });;
+
+  }
+
+  MapState _mapStateWithOffline(MapState currentState, UpdateOfflineProgress event) {
+    final common = {
+      'isOfflineMode': currentState.isOfflineMode,
+      'offlineDownloadProgress': event.downloadProgress,
+      'offlineSyncProgress': event.syncProgress,
+      'offlineMapPath': event.offlineMapPath ?? currentState.offlineMapPath,
+      'isDownloading': event.isDownloading,
+      'isSyncing': event.isSyncing,
+    };
+
+    if (currentState is MapInitial) {
+      return MapInitial(
+        isOfflineMode: common['isOfflineMode'] as bool,
+        offlineDownloadProgress: common['offlineDownloadProgress'] as double,
+        offlineSyncProgress: common['offlineSyncProgress'] as double,
+        offlineMapPath: common['offlineMapPath'] as String?,
+        isDownloading: common['isDownloading'] as bool,
+        isSyncing: common['isSyncing'] as bool,
+      );
+    } else if (currentState is MapLoading) {
+      return MapLoading(
+        isOfflineMode: common['isOfflineMode'] as bool,
+        offlineDownloadProgress: common['offlineDownloadProgress'] as double,
+        offlineSyncProgress: common['offlineSyncProgress'] as double,
+        offlineMapPath: common['offlineMapPath'] as String?,
+        isDownloading: common['isDownloading'] as bool,
+        isSyncing: common['isSyncing'] as bool,
+      );
+    } else if (currentState is MapLoaded) {
+      return MapLoaded(
+        currentState.features,
+        isOfflineMode: common['isOfflineMode'] as bool,
+        offlineDownloadProgress: common['offlineDownloadProgress'] as double,
+        offlineSyncProgress: common['offlineSyncProgress'] as double,
+        offlineMapPath: common['offlineMapPath'] as String?,
+        isDownloading: common['isDownloading'] as bool,
+        isSyncing: common['isSyncing'] as bool,
+      );
+    } else if (currentState is FeatureSelected) {
+      return FeatureSelected(
+        currentState.feature,
+        isOfflineMode: common['isOfflineMode'] as bool,
+        offlineDownloadProgress: common['offlineDownloadProgress'] as double,
+        offlineSyncProgress: common['offlineSyncProgress'] as double,
+        offlineMapPath: common['offlineMapPath'] as String?,
+        isDownloading: common['isDownloading'] as bool,
+        isSyncing: common['isSyncing'] as bool,
+      );
+    } else if (currentState is MapError) {
+      return MapError(
+        event.errorMessage ?? currentState.message,
+        isOfflineMode: common['isOfflineMode'] as bool,
+        offlineDownloadProgress: common['offlineDownloadProgress'] as double,
+        offlineSyncProgress: common['offlineSyncProgress'] as double,
+        offlineMapPath: common['offlineMapPath'] as String?,
+        isDownloading: common['isDownloading'] as bool,
+        isSyncing: common['isSyncing'] as bool,
+      );
+    } else if (currentState is CollectionState) {
+      return currentState.copyWith(
+        offlineDownloadProgress: common['offlineDownloadProgress'] as double,
+        offlineSyncProgress: common['offlineSyncProgress'] as double,
+        offlineMapPath: common['offlineMapPath'] as String?,
+        isDownloading: common['isDownloading'] as bool,
+        isSyncing: common['isSyncing'] as bool,
+      );
+    }
+    return currentState;
   }
 
   List<Field> _getCollectionFields(FeatureTable table) {
-    // Exclude system and GNSS fields
     final excludedPrefixes = ['esrignss_', 'esrisnsr_'];
     final excludedNames = ['OBJECTID', 'GlobalID', 'CreationDate', 'Creator', 'EditDate', 'Editor'];
 
     return table.fields.where((field) {
       final name = field.name;
-      // Exclude fields with specific prefixes or names
       final isExcluded = excludedPrefixes.any((prefix) => name.startsWith(prefix)) || excludedNames.contains(name);
       return !isExcluded && field.editable;
     }).toList();

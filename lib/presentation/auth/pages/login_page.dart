@@ -10,7 +10,13 @@ class LoginPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Field Survey Login'),
+        centerTitle: true,
+        title: const Text(
+          'Field Survey Login',
+          style: TextStyle(
+            fontWeight: FontWeight.w400,
+          ),
+        ),
       ),
       body: BlocConsumer<AuthBloc, AuthState>(
         listener: (context, state) {

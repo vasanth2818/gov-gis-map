@@ -4,6 +4,7 @@ class AppTheme {
   static ThemeData get lightTheme {
     return ThemeData(
       useMaterial3: true,
+      fontFamily: 'Montserrat',
       colorScheme: ColorScheme.fromSeed(
         seedColor: const Color(0xFF005A9C), // A professional "government blue"
         primary: const Color(0xFF005A9C),
@@ -25,6 +26,7 @@ class AppTheme {
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.dark,
+      fontFamily: 'Montserrat',
       colorScheme: ColorScheme.fromSeed(
         seedColor: const Color(0xFF005A9C),
         brightness: Brightness.dark,

@@ -5,10 +5,35 @@ abstract class MapRepository {
   Future<List<GisFeature>> getFeatures(String layerUrl);
 
   Future<ServiceFeatureTable> getServiceFeatureTable(String layerUrl);
-  Future<void> addFeature(String layerUrl, GisFeature feature);
-  Future<void> updateFeature(String layerUrl, GisFeature feature);
-  Future<void> deleteFeature(String layerUrl, String featureId);
-  
+
+  Future<void> addFeature(
+      String layerUrl,
+      GisFeature feature, {
+        FeatureTable? table,
+      });
+
+  Future<void> updateFeature(
+      String layerUrl,
+      GisFeature feature, {
+        FeatureTable? table,
+      });
+
+  Future<void> deleteFeature(
+      String layerUrl,
+      String featureId, {
+        FeatureTable? table,
+      });
+
   // Offline workflows
-  Future<Job> downloadOfflineMap(Envelope areaOfInterest, String downloadPath);
+  Future<GenerateOfflineMapJob> generateOfflineMap({
+    required ArcGISMap onlineMap,
+    required Envelope areaOfInterest,
+    required String downloadPath,
+  });
+
+  Future<OfflineMapSyncJob> syncOfflineMap(String offlineMapPath);
+
+  Future<ArcGISMap> openOfflineMap(String offlineMapPath);
+
+  Future<void> removeOfflineMap(String offlineMapPath);
 }
