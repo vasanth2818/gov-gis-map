@@ -23,6 +23,7 @@ class MapPage extends StatefulWidget {
 
 class _MapPageState extends State<MapPage> {
   ArcGISMapViewController? _mapController;
+  //final _mapController = ArcGISMapView.createController();
 
   StreamSubscription? _locationSubscription;
   StreamSubscription? _satellitesSubscription;
@@ -31,7 +32,7 @@ class _MapPageState extends State<MapPage> {
   final _locationDataSource = SystemLocationDataSource();
   NmeaLocationDataSource? _mockGnssDataSource;
   final _mockNmeaProvider = MockNmeaProvider();
-
+  bool _locationStarted = false;
   late ArcGISMap _map;
   late LocationDataSource _currentLocationDataSource;
 
@@ -186,7 +187,6 @@ class _MapPageState extends State<MapPage> {
 
     return true;
   }
-
   Future<void> _startUserLocation() async {
     if (!mounted) return;
 
@@ -203,69 +203,73 @@ class _MapPageState extends State<MapPage> {
       return;
     }
 
+    final locationDisplay = controller.locationDisplay;
+
+    locationDisplay.dataSource = _currentLocationDataSource;
+
     try {
-      setState(() {
-        _locationStatus = 'Getting current location...';
-      });
-
-      // Connect GPS source to ArcGIS LocationDisplay.
-      controller.locationDisplay.dataSource = _currentLocationDataSource;
-
-      // Listen directly to GPS source.
-      await _locationSubscription?.cancel();
-
-      _locationSubscription =
-          _currentLocationDataSource.onLocationChanged.listen((location) async {
-            if (!mounted) return;
-
-            final position = location.position;
-
-            debugPrint('========== GPS LOCATION ==========');
-            debugPrint('X/LONGITUDE: ${position.x}');
-            debugPrint('Y/LATITUDE: ${position.y}');
-            debugPrint('==================================');
-
-            // Update location data without moving the map.
-            if (!mounted) return;
-
-            setState(() {
-              _lastKnownLocation = location;
-              _accuracy = location.horizontalAccuracy;
-              _locationStatus = 'Current location acquired';
-            });
-            await controller.setViewpointCenter(
-              location!.position,
-              scale: 3000,
-            );
-            _lastKnownLocation = location;
-            controller.locationDisplay.autoPanMode =
-                LocationDisplayAutoPanMode.recenter;
-          });
-      debugPrint('========== GPS LOCATION ==========');
-      debugPrint('GPS: Starting LocationDataSource...');
 
       await _currentLocationDataSource.start();
 
-      debugPrint('GPS: LocationDataSource started');
-    } catch (e, stackTrace) {
-      debugPrint('GPS ERROR: $e');
-      debugPrint(stackTrace.toString());
+      setState(() {
+        _locationStatus = 'Getting current location...';
+      });
+      bool cameraPositioned = false;
 
-      if (!mounted) return;
+      _locationSubscription =
+          _currentLocationDataSource
+              .onLocationChanged
+              .listen(
+                (location) async {
 
-      debugPrint('==================================');
-      _locationStatus = 'Unable to get current location';
-      await _locationDataSource.start();
+              final position =
+                  location.position;
+
+              final latitude =
+                  position.y;
+
+              final longitude =
+                  position.x;
+
+              debugPrint(
+                'CURRENT LOCATION => '
+                    'Lat: $latitude, '
+                    'Lng: $longitude',
+              );
+              setState(() {
+                _lastKnownLocation = location;
+                _accuracy = location.horizontalAccuracy;
+                _locationStatus = 'Current location acquired';
+              });
+
+              if (!mounted) {
+                return;
+              }
+              if (!cameraPositioned){
+
+                cameraPositioned = true;
+
+                await _mapController?.setViewpointCenter(
+                  position,
+                  scale: 10000,
+                );
+              }
+              // Move map to user's current location
+
+            },
+          );
+
     } catch (e) {
-      debugPrint('Failed to start location data source: $e');
 
-      if (mounted) {
-        setState(() {
-          _locationStatus = 'Unable to acquire location';
-        });
-      }
+      debugPrint(
+        'LOCATION ERROR => $e',
+      );
+
+      _locationStarted = false;
     }
   }
+
+
 
   FeatureLayer? get _firstEditableLayer {
     try {
@@ -405,15 +409,33 @@ class _MapPageState extends State<MapPage> {
   }
 
   void _captureLocation() {
-    if (_lastKnownLocation == null) {
+    final controller = _mapController;
+
+    if (controller == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No location acquired yet.')),
+        const SnackBar(content: Text('Map is not ready yet.')),
       );
       return;
     }
 
-    final point = _lastKnownLocation!.position;
-    context.read<MapBloc>().add(LocationCaptured(point));
+    final extent = controller.visibleArea?.extent;
+    final center = extent?.center;
+
+    if (center == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Unable to get map center.')),
+      );
+      return;
+    }
+
+    debugPrint('========== SELECTED MAP LOCATION ==========');
+    debugPrint('X/LONGITUDE: ${center.x}');
+    debugPrint('Y/LATITUDE: ${center.y}');
+    debugPrint('============================================');
+
+    context.read<MapBloc>().add(
+      LocationCaptured(center),
+    );
   }
 
   void _switchLocationProvider(bool useMockGnss) async {
@@ -471,10 +493,10 @@ class _MapPageState extends State<MapPage> {
       });
     });
 
-    if (_mapController != null) {
-      _mapController!.locationDisplay.dataSource = _currentLocationDataSource;
-      _mapController!.locationDisplay.autoPanMode = LocationDisplayAutoPanMode.recenter;
-    }
+    // if (_mapController != null) {
+    //   _mapController!.locationDisplay.dataSource = _currentLocationDataSource;
+    //   _mapController!.locationDisplay.autoPanMode = LocationDisplayAutoPanMode.recenter;
+    // }
 
     await _startUserLocation();
   }

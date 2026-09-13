@@ -42,27 +42,39 @@ dependencies:
   arcgis_maps_toolkit: ^300.1.0+5042
   app_links: ^7.2.1
   image_picker: ^1.2.3
-  flutter_launcher_icons: ^0.14.4
+  flutter_native_splash: ^2.4.6
+
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.4
+
 
 dependency_overrides:
   arcgis_maps_toolkit:
     path: ./arcgis_maps_toolkit
 
+flutter_native_splash:
+  color: "#000000"
+  image: assets/splash.png
+  fullscreen: true
+  android: true
+  android_12:
+    color: "#000000"
+    image: assets/splash.png
+
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path: "assets/earth.png"
+  image_path: "assets/icon/icon.png"
 
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is
   # activated in the `analysis_options.yaml` file located at the root of your
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
-  flutter_lints: ^6.0.0
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -78,7 +90,8 @@ flutter:
   # To add assets to your application, add an assets section, like this:
 assets:
  - assets/fonts
- - assets/earth.png
+ - assets/splash.png
+ - assets/launcher_icon.png
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

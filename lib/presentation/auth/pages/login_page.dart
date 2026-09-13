@@ -11,11 +11,8 @@ class LoginPage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         centerTitle: true,
-        title: const Text(
+        title:  Text(
           'Field Survey Login',
-          style: TextStyle(
-            fontWeight: FontWeight.w400,
-          ),
         ),
       ),
       body: BlocConsumer<AuthBloc, AuthState>(
