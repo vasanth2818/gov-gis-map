@@ -79,11 +79,13 @@ class MapRepositoryImpl implements MapRepository {
     required ArcGISMap onlineMap,
     required Envelope areaOfInterest,
     required String downloadPath,
+    double? currentScale,
   }) {
     return offlineDataSource.generateOfflineMap(
       onlineMap: onlineMap,
       areaOfInterest: areaOfInterest,
       downloadPath: downloadPath,
+      currentScale: currentScale,
     );
   }
 

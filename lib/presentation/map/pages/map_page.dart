@@ -289,45 +289,87 @@ class _MapPageState extends State<MapPage> {
 
     final bloc = context.read<MapBloc>();
 
+    debugPrint('MAP TAP: Offset $screenPoint');
+
     // Don't identify features while collecting a new feature.
     if (bloc.state is CollectionState &&
-        (bloc.state as CollectionState).mode != CollectionMode.idle) {
+        (bloc.state as CollectionState).mode != CollectionMode.idle &&
+        (bloc.state as CollectionState).mode != CollectionMode.viewDetails) {
+      debugPrint('MAP TAP: Ignored due to active collection mode: ${(bloc.state as CollectionState).mode}');
       return;
     }
 
-    final results = await _mapController!.identifyLayers(
-      screenPoint: screenPoint,
-      tolerance: 10,
-      returnPopupsOnly: false,
-    );
+    try {
+      final results = await _mapController!.identifyLayers(
+        screenPoint: screenPoint,
+        tolerance: 20, // Increased tolerance for easier tapping
+        returnPopupsOnly: false,
+      );
 
-    if (results.isNotEmpty) {
-      final layerResult = results.first;
+      debugPrint('MAP TAP: Identified ${results.length} layers');
 
-      if (layerResult.geoElements.isNotEmpty) {
-        final element = layerResult.geoElements.first;
+      for (final layerResult in results) {
+        debugPrint('Layer: ${layerResult.layerContent.name}, Elements: ${layerResult.geoElements.length}');
+        
+        if (layerResult.geoElements.isNotEmpty) {
+          final element = layerResult.geoElements.first;
 
-        if (element is Feature) {
-          final table = element.featureTable;
+          if (element is Feature) {
+            final table = element.featureTable;
+            debugPrint('Feature found in table: ${table?.tableName}');
+            
+            final attributes = Map<String, dynamic>.from(element.attributes);
+            debugPrint('Feature Attributes: $attributes');
 
-          if (table is! ArcGISFeatureTable) return;
+            String objectId = '';
+            if (table is ArcGISFeatureTable) {
+              objectId = element.attributes[table.objectIdField]?.toString() ?? '';
+            } else {
+              objectId = element.attributes['OBJECTID']?.toString() ?? 
+                         element.attributes['objectid']?.toString() ?? 
+                         element.attributes['fid']?.toString() ?? '';
+            }
 
-          final objectIdField = table.objectIdField;
-
-          final gisFeature = GisFeature(
-            id: element.attributes[objectIdField]?.toString() ?? '',
-            geometry: element.geometry,
-            attributes: Map<String, dynamic>.from(element.attributes),
-          );
-
-          if (layerResult.layerContent is FeatureLayer) {
-            _showFeatureAttributes(
-              gisFeature,
-              layerResult.layerContent as FeatureLayer,
+            final gisFeature = GisFeature(
+              id: objectId,
+              geometry: element.geometry,
+              attributes: attributes,
             );
+
+            if (layerResult.layerContent is FeatureLayer) {
+              debugPrint('Showing attributes for layer: ${layerResult.layerContent.name}');
+              _showFeatureAttributes(
+                gisFeature,
+                layerResult.layerContent as FeatureLayer,
+              );
+              return; // Show first one and exit
+            }
+          }
+        }
+        
+        // Check sublayers (e.g. if the layer is a GroupLayer or MapImageLayer)
+        for (final subResult in layerResult.sublayerResults) {
+          debugPrint('Sublayer: ${subResult.layerContent.name}, Elements: ${subResult.geoElements.length}');
+          if (subResult.geoElements.isNotEmpty) {
+            final element = subResult.geoElements.first;
+            if (element is Feature) {
+              final gisFeature = GisFeature(
+                id: element.attributes['OBJECTID']?.toString() ?? '',
+                geometry: element.geometry,
+                attributes: Map<String, dynamic>.from(element.attributes),
+              );
+              if (subResult.layerContent is FeatureLayer) {
+                 _showFeatureAttributes(gisFeature, subResult.layerContent as FeatureLayer);
+                 return;
+              }
+            }
           }
         }
       }
+      
+      debugPrint('MAP TAP: No feature found at this location.');
+    } catch (e) {
+      debugPrint('MAP TAP ERROR: $e');
     }
   }
 
@@ -529,8 +571,20 @@ class _MapPageState extends State<MapPage> {
                   onTap: state.isDownloading ? null : () {
                     Navigator.pop(context);
                     final extent = _mapController?.visibleArea?.extent;
+                    final scale = _mapController?.scale ?? 0.0;
+
+                    if (scale > 100000) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Please zoom in further to download an offline map. The current area is too large.'),
+                          backgroundColor: Colors.orange,
+                        ),
+                      );
+                      return;
+                    }
+
                     if (extent != null) {
-                      context.read<MapBloc>().add(DownloadOfflineMap(_map, extent));
+                      context.read<MapBloc>().add(DownloadOfflineMap(_map, extent, currentScale: scale));
                     }
                   },
                 ),
@@ -636,21 +690,52 @@ class _MapPageState extends State<MapPage> {
       body: BlocListener<MapBloc, MapState>(
         listenWhen: (previous, current) {
           if (current is MapError) return true;
-          if (current is CollectionState && current.mode == CollectionMode.fillingForm) return previous is! CollectionState || previous.mode != CollectionMode.fillingForm;
-          if (current is CollectionState && current.mode == CollectionMode.viewDetails) return true;
+          // Only trigger form if we transition TO fillingForm
+          if (current is CollectionState && current.mode == CollectionMode.fillingForm) {
+            return previous is! CollectionState || previous.mode != CollectionMode.fillingForm;
+          }
+          // Only trigger viewDetails if we transition TO viewDetails
+          if (current is CollectionState && current.mode == CollectionMode.viewDetails) {
+            return previous is! CollectionState || previous.mode != CollectionMode.viewDetails;
+          }
           if (current.isOfflineMode != previous.isOfflineMode) return true;
+          if (current.isDownloading != previous.isDownloading) return true;
+          if (current.isSyncing != previous.isSyncing) return true;
           return false;
         },
         listener: (context, state) {
           if (state is MapError) {
             ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(state.message), backgroundColor: Colors.red));
           }
+
+          // Handle Download Notifications
+          if (state.isDownloading && state.offlineDownloadProgress == 0.0) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Download started...'), duration: Duration(seconds: 2)),
+            );
+          } else if (!state.isDownloading && state.offlineDownloadProgress == 1.0) {
+             ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Download completed successfully.'), backgroundColor: Colors.green, duration: Duration(seconds: 3)),
+            );
+          }
+
+          // Handle Sync Notifications
+          if (state.isSyncing && state.offlineSyncProgress == 0.0) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Sync started...'), duration: Duration(seconds: 2)),
+            );
+          } else if (!state.isSyncing && state.offlineSyncProgress == 1.0) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Sync completed successfully.'), backgroundColor: Colors.green, duration: Duration(seconds: 3)),
+            );
+          }
+
           if (state is CollectionState && state.mode == CollectionMode.fillingForm) {
             _showCollectionForm(context);
           }
           if (state is CollectionState && state.mode == CollectionMode.viewDetails) {
             if (mounted) {
-              Navigator.pop(context);
+              Navigator.pop(context); // Pop the form sheet
               _showFeatureAttributes(state.draftFeature!, state.targetLayer!);
             }
           }
@@ -1006,15 +1091,46 @@ class _FeatureDetailsSheet extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(feature.attributes['pole_id'] ?? feature.attributes['Type'] ?? 'Feature', style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+              Text(
+                (() {
+                  final poleIdKey = feature.attributes.keys.firstWhere(
+                    (k) => k.toLowerCase() == 'pole_id',
+                    orElse: () => 'pole_id',
+                  );
+                  final typeKey = feature.attributes.keys.firstWhere(
+                    (k) => k.toLowerCase() == 'type',
+                    orElse: () => 'Type',
+                  );
+                  return feature.attributes[poleIdKey] ?? feature.attributes[typeKey] ?? 'Feature';
+                })(),
+                style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+              ),
               IconButton(icon: const Icon(Icons.close, color: Colors.white), onPressed: () => Navigator.pop(context)),
             ],
           ),
           const Divider(color: Colors.grey),
+          if (feature.attributes.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 20),
+              child: Center(child: Text('No attributes available for this feature', style: TextStyle(color: Colors.grey))),
+            ),
           ...['pole_id', 'pole_type', 'condition', 'status', 'remarks', 'survey_date'].map((key) {
-            final value = feature.attributes[key];
+            // Case-insensitive attribute lookup
+            final actualKey = feature.attributes.keys.firstWhere(
+              (k) => k.toLowerCase() == key.toLowerCase(),
+              orElse: () => key,
+            );
+            final value = feature.attributes[actualKey];
             if (value == null) return const SizedBox.shrink();
-            return Padding(padding: const EdgeInsets.symmetric(vertical: 4.0), child: Row(children: [Text('$key: ', style: const TextStyle(color: Colors.grey)), Expanded(child: Text('$value', style: const TextStyle(color: Colors.white)))]));
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4.0),
+              child: Row(
+                children: [
+                  Text('$key: ', style: const TextStyle(color: Colors.grey)),
+                  Expanded(child: Text('$value', style: const TextStyle(color: Colors.white))),
+                ],
+              ),
+            );
           }),
           const SizedBox(height: 24),
           Wrap(

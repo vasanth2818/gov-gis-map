@@ -102,7 +102,8 @@ class RefreshMapRequested extends MapEvent {
 class DownloadOfflineMap extends MapEvent {
   final ArcGISMap onlineMap;
   final Envelope areaOfInterest;
-  DownloadOfflineMap(this.onlineMap, this.areaOfInterest);
+  final double? currentScale;
+  DownloadOfflineMap(this.onlineMap, this.areaOfInterest, {this.currentScale});
 }
 
 class OpenOfflineMap extends MapEvent {}
@@ -655,10 +656,26 @@ class MapBloc extends Bloc<MapEvent, MapState> {
         final directory = await getApplicationDocumentsDirectory();
         final downloadPath = '${directory.path}/offline_map';
 
+        // Ensure the directory is cleaned before starting a new download
+        final downloadDir = Directory(downloadPath);
+        if (await downloadDir.exists()) {
+          await downloadDir.delete(recursive: true);
+        }
+
+        // Prevent multiple simultaneous jobs
+        if (state.isDownloading) {
+          emit(MapError('A download is already in progress.',
+            isOfflineMode: state.isOfflineMode,
+            offlineMapPath: state.offlineMapPath,
+          ));
+          return;
+        }
+
         final job = await mapRepository.generateOfflineMap(
           onlineMap: event.onlineMap,
           areaOfInterest: event.areaOfInterest,
           downloadPath: downloadPath,
+          currentScale: event.currentScale,
         );
 
         add(UpdateOfflineProgress(isDownloading: true));
@@ -672,7 +689,13 @@ class MapBloc extends Bloc<MapEvent, MapState> {
 
         debugPrint('========== OFFLINE DOWNLOAD STARTED ==========');
 
-        final result = await job.run();
+        // Introduce a timeout mechanism for long-running downloads
+        final result = await job.run().timeout(
+          const Duration(minutes: 5),
+          onTimeout: () {
+            throw Exception('Download timed out after 5 minutes.');
+          },
+        );
 
         debugPrint('========== OFFLINE DOWNLOAD FINISHED ==========');
         debugPrint('HAS ERRORS: ${result.hasErrors}');

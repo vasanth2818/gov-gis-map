@@ -8,15 +8,19 @@ class OfflineMapDataSource {
     required ArcGISMap onlineMap,
     required Envelope areaOfInterest,
     required String downloadPath,
+    double? currentScale,
   }) async {
     try {
       final offlineMapTask = OfflineMapTask.withOnlineMap(onlineMap);
 
+      // Optimization: Limit the scale range to reduce basemap tile count.
+      // If we don't specify, it might try to download all LODs.
       final parameters =
       await offlineMapTask.createDefaultGenerateOfflineMapParameters(
         areaOfInterest: areaOfInterest,
+        minScale: currentScale != null ? (currentScale * 2) : 0,
+        maxScale: 250, // High detail, but prevents downloading extreme LODs if unnecessary
       );
-
       // The offline map must be backed by sync-enabled geodatabases
       // because the app supports offline editing and manual synchronization.
       parameters.updateMode =

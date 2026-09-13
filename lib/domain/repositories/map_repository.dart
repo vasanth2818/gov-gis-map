@@ -29,6 +29,7 @@ abstract class MapRepository {
     required ArcGISMap onlineMap,
     required Envelope areaOfInterest,
     required String downloadPath,
+    double? currentScale,
   });
 
   Future<OfflineMapSyncJob> syncOfflineMap(String offlineMapPath);
