@@ -45,6 +45,7 @@ class _MapPageState extends State<MapPage> {
   int _satelliteCount = 0;
   String _fixType = 'System GPS';
   double _accuracy = 0.0;
+  StreamSubscription<String>? _mockNmeaSubscription;
 
   @override
   void initState() {
@@ -105,6 +106,8 @@ class _MapPageState extends State<MapPage> {
     _statusSubscription?.cancel();
     _mockNmeaProvider.stopSimulation();
     _mapController?.dispose();
+    _mockNmeaSubscription?.cancel();
+    _mockNmeaSubscription = null;
     super.dispose();
   }
   Future<void> _onMapCreated() async {
@@ -215,13 +218,10 @@ class _MapPageState extends State<MapPage> {
         _locationStatus = 'Getting current location...';
       });
       bool cameraPositioned = false;
-
-      _locationSubscription =
-          _currentLocationDataSource
-              .onLocationChanged
-              .listen(
+      debugPrint('LOCATION STARTED');
+      _locationSubscription = _currentLocationDataSource.onLocationChanged.listen(
                 (location) async {
-
+                  debugPrint('LOCATION GETTING');
               final position =
                   location.position;
 
@@ -238,7 +238,10 @@ class _MapPageState extends State<MapPage> {
               );
               setState(() {
                 _lastKnownLocation = location;
-                _accuracy = location.horizontalAccuracy;
+                //_accuracy = location.horizontalAccuracy;
+                _accuracy = _currentLocationDataSource is NmeaLocationDataSource
+                    ? 0.9
+                    : location.horizontalAccuracy;
                 _locationStatus = 'Current location acquired';
               });
 
@@ -404,6 +407,73 @@ class _MapPageState extends State<MapPage> {
     }
   }
 
+  Future<void> _exitOfflineMap() async {
+    try {
+      debugPrint('========== EXIT OFFLINE MAP ==========');
+
+      // Create the ONLINE map again
+      if (widget.portalItem != null) {
+        _map = ArcGISMap.withItem(widget.portalItem!);
+      } else {
+        _map = ArcGISMap.withBasemapStyle(
+          BasemapStyle.arcGISImageryStandard,
+        );
+
+        final featureLayer = FeatureLayerExtension.fromUrl(
+          Uri.parse(_layerUrl),
+        );
+
+        _map.operationalLayers.add(featureLayer);
+      }
+
+      // Load online map
+      await _map.load();
+
+      if (!mounted) return;
+
+      // IMPORTANT:
+      // Existing MapView controller must receive the new online map.
+      final controller = _mapController;
+
+      if (controller != null) {
+        controller.arcGISMap = _map;
+      }
+
+      // Load online layers
+      for (final layer in _map.operationalLayers) {
+        if (layer is FeatureLayer) {
+          await layer.load();
+
+          final table = layer.featureTable;
+
+          if (table != null) {
+            await table.load();
+          }
+        }
+      }
+
+      // Tell BLoC that we are now ONLINE
+      context.read<MapBloc>().add(ExitOfflineMap());
+
+      if (mounted) {
+        setState(() {});
+      }
+
+      debugPrint('========== EXIT OFFLINE MAP SUCCESS ==========');
+    } catch (e) {
+      debugPrint('EXIT OFFLINE MAP ERROR => $e');
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to exit offline map: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
   Future<void> _goToMyLocation() async {
     if (!await _checkLocationRequirements()) {
       return;
@@ -504,18 +574,46 @@ class _MapPageState extends State<MapPage> {
     if (useMockGnss) {
       if (_mockGnssDataSource == null) {
         _mockGnssDataSource = NmeaLocationDataSource.withProvider(() async {
-          _mockNmeaProvider.startSimulation();
+          //_mockNmeaProvider.startSimulation();
           return _mockNmeaProvider;
         });
       }
       _currentLocationDataSource = _mockGnssDataSource!;
 
-      _satellitesSubscription = _mockGnssDataSource!.onSatellitesChanged.listen((satellites) {
+      _mockNmeaSubscription = _mockNmeaProvider.nmeaData.listen((sentence) {
+        if (!sentence.startsWith('\$GPGSA')) {
+          return;
+        }
+
+        final withoutChecksum = sentence.split('*').first;
+        final fields = withoutChecksum.split(',');
+
+        // GPGSA:
+        // 0 = GPGSA
+        // 1 = mode
+        // 2 = fix type
+        // 3..14 = satellite PRNs
+        //
+        // Therefore count non-empty fields from index 3 to 14.
+        int count = 0;
+
+        for (int i = 3; i <= 14 && i < fields.length; i++) {
+          if (fields[i].trim().isNotEmpty) {
+            count++;
+          }
+        }
+
+        debugPrint(
+          'MOCK NMEA SATELLITES => $count | $sentence',
+        );
+
         if (!mounted) return;
+
         setState(() {
-          _satelliteCount = satellites.length;
+          _satelliteCount = count;
         });
       });
+      _mockNmeaProvider.startSimulation();
 
       setState(() {
         _fixType = 'SIMULATED GNSS';
@@ -593,9 +691,14 @@ class _MapPageState extends State<MapPage> {
                   title: Text(state.isOfflineMode ? 'Exit Offline Map' : 'Open Offline Map', style: const TextStyle(color: Colors.white)),
                   onTap: state.offlineMapPath == null ? null : () {
                     Navigator.pop(context);
+                    // if (state.isOfflineMode) {
+                    //   _initMap();
+                    //   context.read<MapBloc>().add(PageInitialized()); // Reset to online
+                    // } else {
+                    //   context.read<MapBloc>().add(OpenOfflineMap());
+                    // }
                     if (state.isOfflineMode) {
-                      _initMap();
-                      context.read<MapBloc>().add(PageInitialized()); // Reset to online
+                      _exitOfflineMap();
                     } else {
                       context.read<MapBloc>().add(OpenOfflineMap());
                     }
@@ -848,13 +951,35 @@ class _MapPageState extends State<MapPage> {
   }
 
   void _showBasemapGallery() {
-    final portal = Portal.arcGISOnline(connection: PortalConnection.authenticated);
-    final controller = BasemapGalleryController.withPortal(portal, geoModel: _map);
+    final portal = Portal.arcGISOnline(
+      connection: PortalConnection.authenticated,
+    );
+
+    final controller = BasemapGalleryController.withPortal(
+      portal,
+      geoModel: _map,
+    );
+
+    controller.onBasemapChanged = (basemap) {
+      if (mounted) {
+        Navigator.of(context).pop();
+      }
+    };
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      builder: (context) => SizedBox(height: MediaQuery.of(context).size.height * 0.75, child: BasemapGallery(controller: controller)),
-    ).whenComplete(controller.dispose);
+      builder: (sheetContext) {
+        return SizedBox(
+          height: MediaQuery.of(sheetContext).size.height * 0.75,
+          child: BasemapGallery(
+            controller: controller,
+          ),
+        );
+      },
+    ).whenComplete(
+      controller.dispose,
+    );
   }
 
   void _showLayersSheet() {
@@ -862,39 +987,106 @@ class _MapPageState extends State<MapPage> {
       context: context,
       isScrollControlled: true,
       backgroundColor: const Color(0xFF1E1E1E),
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
-      builder: (context) {
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(16),
+        ),
+      ),
+      builder: (sheetContext) {
         final operationalLayers = _map.operationalLayers.toList();
-        final baseLayers = _map.basemap?.baseLayers.toList() ?? <Layer>[];
-        final referenceLayers = _map.basemap?.referenceLayers.toList() ?? <Layer>[];
+        final baseLayers =
+            _map.basemap?.baseLayers.toList() ?? <Layer>[];
+        final referenceLayers =
+            _map.basemap?.referenceLayers.toList() ?? <Layer>[];
 
-        return SafeArea(
-          child: SizedBox(
-            height: MediaQuery.of(context).size.height * 0.75,
-            child: ListView(
-              padding: const EdgeInsets.only(top: 16, bottom: 24),
-              children: [
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 20),
-                  child: Text('Layers', style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
+        return StatefulBuilder(
+          builder: (context, sheetSetState) {
+            return SafeArea(
+              child: SizedBox(
+                height: MediaQuery.of(context).size.height * 0.75,
+                child: ListView(
+                  padding: const EdgeInsets.only(
+                    top: 16,
+                    bottom: 24,
+                  ),
+                  children: [
+                    const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 20),
+                      child: Text(
+                        'Layers',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 20),
+
+                    _buildLayerSectionTitle('Map layers'),
+
+                    if (operationalLayers.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 12,
+                        ),
+                        child: Text(
+                          'No map layers',
+                          style: TextStyle(
+                            color: Colors.grey,
+                          ),
+                        ),
+                      )
+                    else
+                      ...operationalLayers.map(
+                            (layer) => _buildOperationalLayerTile(
+                          layer,
+                          sheetSetState,
+                        ),
+                      ),
+
+                    const SizedBox(height: 12),
+
+                    _buildLayerSectionTitle(
+                      'Basemap layers',
+                    ),
+
+                    if (baseLayers.isEmpty &&
+                        referenceLayers.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 12,
+                        ),
+                        child: Text(
+                          'No basemap layers',
+                          style: TextStyle(
+                            color: Colors.grey,
+                          ),
+                        ),
+                      )
+                    else ...[
+                      ...baseLayers.map(
+                            (layer) => _buildBasemapLayerTile(
+                          layer,
+                          sheetSetState,
+                        ),
+                      ),
+
+                      ...referenceLayers.map(
+                            (layer) => _buildBasemapLayerTile(
+                          layer,
+                          sheetSetState,
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
-                const SizedBox(height: 20),
-                _buildLayerSectionTitle('Map layers'),
-                if (operationalLayers.isEmpty)
-                  const Padding(padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12), child: Text('No map layers', style: TextStyle(color: Colors.grey)))
-                else
-                  ...operationalLayers.map(_buildOperationalLayerTile),
-                const SizedBox(height: 12),
-                _buildLayerSectionTitle('Basemap layers'),
-                if (baseLayers.isEmpty && referenceLayers.isEmpty)
-                  const Padding(padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12), child: Text('No basemap layers', style: TextStyle(color: Colors.grey)))
-                else ...[
-                  ...baseLayers.map(_buildBasemapLayerTile),
-                  ...referenceLayers.map(_buildBasemapLayerTile),
-                ],
-              ],
-            ),
-          ),
+              ),
+            );
+          },
         );
       },
     );
@@ -902,10 +1094,55 @@ class _MapPageState extends State<MapPage> {
 
   Widget _buildLayerSectionTitle(String title) => Padding(padding: const EdgeInsets.fromLTRB(20, 8, 20, 8), child: Text(title, style: const TextStyle(color: Colors.grey, fontSize: 14, fontWeight: FontWeight.w600)));
 
+  Widget _buildOperationalLayerTile(
+      Layer layer,
+      void Function(VoidCallback) sheetSetState,
+      ) {
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 20),
 
-  Widget _buildOperationalLayerTile(Layer layer) => ListTile(contentPadding: const EdgeInsets.symmetric(horizontal: 20), leading: const Icon(Icons.layers_outlined, color: Colors.blueGrey, size: 30), title: Text(layer.name.isNotEmpty ? layer.name : 'Untitled layer', style: const TextStyle(color: Colors.white, fontSize: 16)), trailing: Checkbox(value: layer.isVisible, onChanged: (value) { if (value != null) setState(() { layer.isVisible = value; }); }));
+      leading: const Icon(
+        Icons.layers_outlined,
+        color: Colors.blueGrey,
+        size: 30,
+      ),
 
-  Widget _buildBasemapLayerTile(Layer layer) => ListTile(contentPadding: const EdgeInsets.symmetric(horizontal: 20), leading: const Icon(Icons.public, color: Colors.orange, size: 30), title: Text(layer.name.isNotEmpty ? layer.name : 'Basemap', style: const TextStyle(color: Colors.white, fontSize: 16)), trailing: Checkbox(value: layer.isVisible, onChanged: (value) { if (value != null) setState(() { layer.isVisible = value; }); }));
+      title: Text(
+        layer.name.isNotEmpty ? layer.name : 'Untitled layer',
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 16,
+        ),
+      ),
+
+      trailing: Checkbox(
+        value: layer.isVisible,
+
+        onChanged: (bool? value) {
+          if (value == null) return;
+
+          // Update ArcGIS layer
+          layer.isVisible = value;
+
+          // IMPORTANT:
+          // Rebuild the BottomSheet itself
+          sheetSetState(() {});
+        },
+      ),
+    );
+  }
+
+  Widget _buildBasemapLayerTile(Layer layer, void Function(VoidCallback) sheetSetState,) => ListTile(contentPadding: const EdgeInsets.symmetric(horizontal: 20), leading: const Icon(Icons.public, color: Colors.orange, size: 30), title: Text(layer.name.isNotEmpty ? layer.name : 'Basemap', style: const TextStyle(color: Colors.white, fontSize: 16)), trailing: Checkbox(value: layer.isVisible,
+      onChanged: (value) {
+        if (value == null) return;
+
+        // Update ArcGIS layer
+        layer.isVisible = value;
+
+        // IMPORTANT:
+        // Rebuild the BottomSheet itself
+        sheetSetState(() {});
+  }));
 
   void _goToDefaultMapExtent() {
     final viewpoint = _map.initialViewpoint;
@@ -1025,7 +1262,8 @@ class _FeatureCollectionFormState extends State<_FeatureCollectionForm> {
     }
   }
 
-  Widget _buildDropdownField({required String label, String? value, required List<CodedValue> options, required Function(dynamic) onChanged, required BuildContext context}) {
+  Widget _buildDropdownField(
+      {required String label, String? value, required List<CodedValue> options, required Function(dynamic) onChanged, required BuildContext context}) {
     CodedValue? current;
     try { current = options.firstWhere((o) => o.code.toString() == value); } catch (_) {}
     return Padding(

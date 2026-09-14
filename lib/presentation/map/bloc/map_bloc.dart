@@ -108,6 +108,8 @@ class DownloadOfflineMap extends MapEvent {
 
 class OpenOfflineMap extends MapEvent {}
 
+class ExitOfflineMap extends MapEvent {}
+
 class SyncOfflineChanges extends MapEvent {}
 
 class RemoveOfflineMap extends MapEvent {}
@@ -763,6 +765,34 @@ class MapBloc extends Bloc<MapEvent, MapState> {
       }
     });
 
+    on<ExitOfflineMap>((event, emit) async {
+      try {
+        final prefs = await SharedPreferences.getInstance();
+
+        // IMPORTANT:
+        // Do NOT delete the offline map.
+        // We only leave offline mode.
+        final path = prefs.getString('offline_map_path');
+
+        emit(
+          MapInitial(
+            isOfflineMode: false,
+            offlineMapPath: path,
+          ),
+        );
+
+        debugPrint('========== OFFLINE MODE EXITED ==========');
+      } catch (e) {
+        emit(
+          MapError(
+            'Failed to exit offline map: $e',
+            isOfflineMode: state.isOfflineMode,
+            offlineMapPath: state.offlineMapPath,
+          ),
+        );
+      }
+    });
+
     on<SyncOfflineChanges>((event, emit) async {
       if (state.offlineMapPath == null) return;
 
@@ -797,11 +827,58 @@ class MapBloc extends Bloc<MapEvent, MapState> {
     });
 
     on<RemoveOfflineMap>((event, emit) async {
-      if (state.offlineMapPath != null) {
-        await mapRepository.removeOfflineMap(state.offlineMapPath!);
+      final path = state.offlineMapPath;
+
+      if (path == null) {
+        emit(
+          MapInitial(
+            isOfflineMode: false,
+          ),
+        );
+        return;
+      }
+
+      try {
+        debugPrint('========== REMOVING OFFLINE MAP ==========');
+        debugPrint('OFFLINE MAP PATH => $path');
+
+        // First mark the application as ONLINE.
+        // MapPage will switch the MapView to the online map.
+        if (state.isOfflineMode) {
+          emit(
+            MapInitial(
+              isOfflineMode: false,
+              offlineMapPath: path,
+            ),
+          );
+        }
+
+        // Remove the offline package from disk.
+        await mapRepository.removeOfflineMap(path);
+
+        // Remove saved path.
         final prefs = await SharedPreferences.getInstance();
         await prefs.remove('offline_map_path');
-        emit(MapInitial(isOfflineMode: false));
+
+        // Final state: no offline map exists.
+        emit(
+          MapInitial(
+            isOfflineMode: false,
+            offlineMapPath: null,
+          ),
+        );
+
+        debugPrint('========== OFFLINE MAP REMOVED ==========');
+      } catch (e) {
+        debugPrint('REMOVE OFFLINE MAP ERROR => $e');
+
+        emit(
+          MapError(
+            'Failed to remove offline map: $e',
+            isOfflineMode: state.isOfflineMode,
+            offlineMapPath: path,
+          ),
+        );
       }
     });
 
