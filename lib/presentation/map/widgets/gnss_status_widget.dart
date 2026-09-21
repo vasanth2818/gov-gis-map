@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 
 class GnssStatusWidget extends StatelessWidget {
-  final Function(bool) onProviderSwitch;
+  final Function(String) onProviderSwitch;
   final String currentProvider;
   final String providerStatus;
   final double accuracy;
   final int satelliteCount;
   final String fixType;
+
+  final VoidCallback? onAddProvider;
 
   const GnssStatusWidget({
     Key? key,
@@ -16,6 +18,7 @@ class GnssStatusWidget extends StatelessWidget {
     required this.accuracy,
     required this.satelliteCount,
     required this.fixType,
+    this.onAddProvider,
   }) : super(key: key);
 
   @override
@@ -83,16 +86,43 @@ class GnssStatusWidget extends StatelessWidget {
                         value: 'Mock GNSS',
                         child: Text('Mock GNSS'),
                       ),
+                      DropdownMenuItem(
+                        value: 'Real GNSS',
+                          child: Text('Real GNSS'),
+                      ),
                     ],
                     onChanged: (value) {
                       if (value != null) {
-                        onProviderSwitch(value == 'Mock GNSS');
+                        onProviderSwitch(value);
                       }
                     },
                   ),
                 ),
               ],
             ),
+            if (currentProvider == 'Real GNSS' && onAddProvider != null) ...[
+              const SizedBox(height: 8),
+
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  onPressed: onAddProvider,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: const [
+                      Icon(Icons.bluetooth, size: 18),
+                      SizedBox(width: 8),
+                      Text('|'),
+                      SizedBox(width: 8),
+                      Icon(Icons.usb, size: 18),
+                      SizedBox(width: 8),
+
+                      Text('Add GNSS Provider'),
+                    ],
+                  ),
+                ),
+              ),
+            ],
             const SizedBox(height: 6),
             _buildDataRow('Status', providerStatus, labelStyle, valueStyle),
             _buildDataRow('Accuracy', '${accuracy.toStringAsFixed(2)} m', labelStyle, valueStyle),

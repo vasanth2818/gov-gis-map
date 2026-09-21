@@ -6,7 +6,7 @@ abstract class MapRepository {
 
   Future<ServiceFeatureTable> getServiceFeatureTable(String layerUrl);
 
-  Future<void> addFeature(
+  Future<GisFeature> addFeature(
       String layerUrl,
       GisFeature feature, {
         FeatureTable? table,

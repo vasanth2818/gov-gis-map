@@ -36,17 +36,18 @@ class MapRepositoryImpl implements MapRepository {
   }
 
   @override
-  Future<void> addFeature(
+  Future<GisFeature> addFeature(
       String layerUrl,
       GisFeature feature, {
         FeatureTable? table,
-      }) {
-    return remoteDataSource.addFeature(
+      }) async {
+    return await remoteDataSource.addFeature(
       layerUrl,
       feature,
       table: table,
     );
   }
+
 
   @override
   Future<void> updateFeature(

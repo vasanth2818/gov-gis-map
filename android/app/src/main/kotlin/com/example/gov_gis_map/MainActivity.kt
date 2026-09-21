@@ -2,6 +2,7 @@ package com.example.gov_gis_map
 
 import android.Manifest
 import android.app.Activity
+import android.bluetooth.BluetoothManager
 import android.content.Intent
 import android.content.IntentSender
 import android.content.pm.PackageManager
@@ -42,6 +43,10 @@ class MainActivity : FlutterActivity() {
 
                 "getLastKnownLocation" -> {
                     getLastKnownLocation(result)
+                }
+
+                "isBluetoothEnabled" -> {
+                    isBluetoothEnabled(result)
                 }
 
                 else -> {
@@ -110,6 +115,94 @@ class MainActivity : FlutterActivity() {
                 }
             }
     }
+
+    // ---------------------------------------------------------
+// BLUETOOTH STATE
+// ---------------------------------------------------------
+
+    private fun isBluetoothEnabled(
+        result: MethodChannel.Result
+    ) {
+        try {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+
+                if (
+                    ActivityCompat.checkSelfPermission(
+                        this,
+                        Manifest.permission.BLUETOOTH_CONNECT
+                    ) != PackageManager.PERMISSION_GRANTED
+                ) {
+                    result.error(
+                        "BLUETOOTH_PERMISSION",
+                        "Bluetooth Connect permission is not granted.",
+                        null
+                    )
+                    return
+                }
+            }
+
+            val bluetoothManager =
+                getSystemService(BLUETOOTH_SERVICE) as BluetoothManager
+
+            val bluetoothAdapter = bluetoothManager.adapter
+
+            if (bluetoothAdapter == null) {
+                result.success(false)
+                return
+            }
+
+            result.success(bluetoothAdapter.isEnabled)
+
+        } catch (e: SecurityException) {
+
+            result.error(
+                "BLUETOOTH_PERMISSION",
+                "Bluetooth permission is not granted.",
+                null
+            )
+
+        } catch (e: Exception) {
+
+            result.error(
+                "BLUETOOTH_ERROR",
+                e.message ?: "Unable to determine Bluetooth state.",
+                null
+            )
+        }
+    }
+
+//    private fun isBluetoothEnabled(result: MethodChannel.Result) {
+//        try {
+//            val bluetoothManager =
+//                getSystemService(BLUETOOTH_SERVICE) as BluetoothManager
+//
+//            val bluetoothAdapter =
+//                bluetoothManager.adapter
+//
+//            if (bluetoothAdapter == null) {
+//                result.success(false)
+//                return
+//            }
+//
+//            result.success(bluetoothAdapter.isEnabled)
+//
+//        } catch (e: SecurityException) {
+//
+//            result.error(
+//                "BLUETOOTH_PERMISSION",
+//                "Bluetooth permission is not granted.",
+//                null
+//            )
+//
+//        } catch (e: Exception) {
+//
+//            result.error(
+//                "BLUETOOTH_ERROR",
+//                e.message ?: "Unable to determine Bluetooth state.",
+//                null
+//            )
+//        }
+//    }
 
     // ---------------------------------------------------------
     // GET ANDROID CACHED LOCATION

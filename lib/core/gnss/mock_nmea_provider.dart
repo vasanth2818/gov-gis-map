@@ -119,10 +119,81 @@ class MockNmeaProvider implements NmeaDataProvider {
         _nmeaStreamController.add(gsaSentence);
 
         // ---------------------------------------------------------
+// 6. GPGSV
+//
+// Satellites in view.
+// This simulates 8 satellites being visible.
+// ---------------------------------------------------------
+            final gsvBody =
+                'GPGSV,1,1,08,'
+                '01,45,120,40,'
+                '02,30,210,38,'
+                '03,60,300,42,'
+                '04,20,050,35,'
+                '05,50,180,41,'
+                '06,25,270,37,'
+                '07,70,090,43,'
+                '08,40,330,39';
+
+            final gsvSentence = _withChecksum(gsvBody);
+
+            _nmeaStreamController.add(gsvSentence);
+
+            // ---------------------------------------------------------
+// 7. GPRMC
+//
+// Recommended Minimum Navigation Information.
+// ---------------------------------------------------------
+            final rmcBody =
+                'GPRMC,'
+                '$timeStr,'
+                'A,'
+                '$latStr,'
+                '$latDir,'
+                '$lonStr,'
+                '$lonDir,'
+                '0.0,'
+                '0.0,'
+                '${now.day.toString().padLeft(2, '0')}'
+                '${now.month.toString().padLeft(2, '0')}'
+                '${(now.year % 100).toString().padLeft(2, '0')},'
+                ','
+                'A';
+
+            final rmcSentence = _withChecksum(rmcBody);
+
+            _nmeaStreamController.add(rmcSentence);
+
+            // ---------------------------------------------------------
+// 8. GPGST
+//
+// Simulated position accuracy information.
+// ---------------------------------------------------------
+            final gstBody =
+                'GPGST,'
+                '$timeStr,'
+                '0.7,'
+                '0.5,'
+                '0.5,'
+                '0.8,'
+                '0.6,'
+                '0.6,'
+                '0.9';
+
+            final gstSentence = _withChecksum(gstBody);
+
+            _nmeaStreamController.add(gstSentence);
+
+
+
+        // ---------------------------------------------------------
         // Debug logs
         // ---------------------------------------------------------
-        debugPrint('MOCK NMEA: GGA => $ggaSentence');
-        debugPrint('MOCK NMEA: GSA => $gsaSentence');
+            debugPrint('MOCK NMEA: GGA => $ggaSentence');
+            debugPrint('MOCK NMEA: GSA => $gsaSentence');
+            debugPrint('MOCK NMEA: GSV => $gsvSentence');
+            debugPrint('MOCK NMEA: RMC => $rmcSentence');
+            debugPrint('MOCK NMEA: GST => $gstSentence');
       },
     );
   }

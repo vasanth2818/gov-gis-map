@@ -1,5 +1,4 @@
 import 'dart:developer';
-
 import 'package:arcgis_maps/arcgis_maps.dart';
 
 class ArcGISAuthService {
@@ -33,7 +32,24 @@ class ArcGISAuthService {
       credential: credential,
     );
 
+    // Clear API Key to ensure OAuth identity is preferred for all services
+    //ArcGISEnvironment.apiKey = '';
+
     log('ArcGIS OAuth login successful');
+    final portal = Portal.arcGISOnline(
+      connection: PortalConnection.authenticated,
+    );
+
+    await portal.load();
+
+    log('========== PORTAL AUTH DEBUG ==========');
+    log('Portal user     = ${portal.user?.username}');
+    log('Portal URL      = ${portal.uri}');
+    log('=======================================');
+
+    log(
+      'AUTHENTICATED USER = ${portal.user?.username}',
+    );
 
     return credential;
   }

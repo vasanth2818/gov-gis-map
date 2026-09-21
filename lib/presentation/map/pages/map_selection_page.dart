@@ -17,7 +17,7 @@ class MapSelectionPage extends StatelessWidget {
           title: const Text('Maps', style: TextStyle(fontWeight: FontWeight.bold)),
           centerTitle: false,
           actions: [
-            IconButton(icon: const Icon(Icons.search), onPressed: () {}),
+            // IconButton(icon: const Icon(Icons.search), onPressed: () {}),
             IconButton(
               icon: const Icon(Icons.account_circle),
               onPressed: () async {
@@ -49,15 +49,15 @@ class MapSelectionPage extends StatelessWidget {
 
                           const SizedBox(height: 16),
 
-                          Text(
-                            'User ID',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              color: Colors.grey[600],
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(user?.userId ?? 'Unknown'),
+                          // Text(
+                          //   'User ID',
+                          //   style: TextStyle(
+                          //     fontWeight: FontWeight.bold,
+                          //     color: Colors.grey[600],
+                          //   ),
+                          // ),
+                          // const SizedBox(height: 4),
+                          // Text(user?.userId ?? 'Unknown'),
                         ],
                       ),
                       actions: [
@@ -127,7 +127,7 @@ class MapSelectionPage extends StatelessWidget {
                             map.title,
                             style: const TextStyle(fontWeight: FontWeight.bold),
                           ),
-                          trailing: const Icon(Icons.more_vert),
+                          // trailing: const Icon(Icons.more_vert),
                           onTap: () {
                             Navigator.pushNamed(
                               context,
