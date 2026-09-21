@@ -1,4 +1,5 @@
 import 'dart:io';
+
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:equatable/equatable.dart';
 import 'package:arcgis_maps/arcgis_maps.dart';
@@ -44,10 +45,7 @@ class LocationCaptured extends MapEvent {
   final Geometry geometry;
   final Map<String, dynamic> attributes;
 
-  LocationCaptured(
-      this.geometry, {
-        this.attributes = const {},
-      });
+  LocationCaptured(this.geometry, {this.attributes = const {}});
 }
 
 class BeginLocationUpdate extends MapEvent {}
@@ -138,7 +136,17 @@ class UpdateOfflineProgress extends MapEvent {
 }
 
 // States
-enum CollectionMode { idle, pickingLocation, fillingForm, submitting, viewDetails, editing, copying, collectingHere, deleting }
+enum CollectionMode {
+  idle,
+  pickingLocation,
+  fillingForm,
+  submitting,
+  viewDetails,
+  editing,
+  copying,
+  collectingHere,
+  deleting,
+}
 
 abstract class MapState extends Equatable {
   final bool isOfflineMode;
@@ -192,7 +200,8 @@ class MapLoading extends MapState {
 
 class MapLoaded extends MapState {
   final List<GisFeature> features;
-  MapLoaded(this.features, {
+  MapLoaded(
+    this.features, {
     super.isOfflineMode,
     super.offlineDownloadProgress,
     super.offlineSyncProgress,
@@ -206,7 +215,8 @@ class MapLoaded extends MapState {
 
 class FeatureSelected extends MapState {
   final GisFeature feature;
-  FeatureSelected(this.feature, {
+  FeatureSelected(
+    this.feature, {
     super.isOfflineMode,
     super.offlineDownloadProgress,
     super.offlineSyncProgress,
@@ -220,7 +230,8 @@ class FeatureSelected extends MapState {
 
 class MapError extends MapState {
   final String message;
-  MapError(this.message, {
+  MapError(
+    this.message, {
     super.isOfflineMode,
     super.offlineDownloadProgress,
     super.offlineSyncProgress,
@@ -265,7 +276,11 @@ class CollectionState extends MapState {
     );
   }
 
-  factory CollectionState.success(List<Field> fields, {bool isEdit = false, bool isOfflineMode = false}) {
+  factory CollectionState.success(
+    List<Field> fields, {
+    bool isEdit = false,
+    bool isOfflineMode = false,
+  }) {
     return CollectionState(
       mode: CollectionMode.fillingForm,
       editableFields: fields,
@@ -310,7 +325,8 @@ class CollectionState extends MapState {
       isEdit: isEdit ?? this.isEdit,
       isNewFeature: isNewFeature ?? this.isNewFeature,
       isOfflineMode: isOfflineMode ?? this.isOfflineMode,
-      offlineDownloadProgress: offlineDownloadProgress ?? this.offlineDownloadProgress,
+      offlineDownloadProgress:
+          offlineDownloadProgress ?? this.offlineDownloadProgress,
       offlineSyncProgress: offlineSyncProgress ?? this.offlineSyncProgress,
       offlineMapPath: offlineMapPath ?? this.offlineMapPath,
       isDownloading: isDownloading ?? this.isDownloading,
@@ -325,29 +341,40 @@ class MapBloc extends Bloc<MapEvent, MapState> {
 
   MapBloc({required this.mapRepository}) : super(MapInitial()) {
     on<LoadMapData>((event, emit) async {
-      emit(MapLoading(
-        isOfflineMode: state.isOfflineMode,
-        offlineMapPath: state.offlineMapPath,
-      ));
+      emit(
+        MapLoading(
+          isOfflineMode: state.isOfflineMode,
+          offlineMapPath: state.offlineMapPath,
+        ),
+      );
       try {
         final features = await mapRepository.getFeatures(event.layerUrl);
-        emit(MapLoaded(features,
-          isOfflineMode: state.isOfflineMode,
-          offlineMapPath: state.offlineMapPath,
-        ));
+        emit(
+          MapLoaded(
+            features,
+            isOfflineMode: state.isOfflineMode,
+            offlineMapPath: state.offlineMapPath,
+          ),
+        );
       } catch (e) {
-        emit(MapError(e.toString(),
-          isOfflineMode: state.isOfflineMode,
-          offlineMapPath: state.offlineMapPath,
-        ));
+        emit(
+          MapError(
+            e.toString(),
+            isOfflineMode: state.isOfflineMode,
+            offlineMapPath: state.offlineMapPath,
+          ),
+        );
       }
     });
 
     on<FeatureIdentified>((event, emit) {
-      emit(FeatureSelected(event.feature,
-        isOfflineMode: state.isOfflineMode,
-        offlineMapPath: state.offlineMapPath,
-      ));
+      emit(
+        FeatureSelected(
+          event.feature,
+          isOfflineMode: state.isOfflineMode,
+          offlineMapPath: state.offlineMapPath,
+        ),
+      );
     });
 
     on<AddFeatureRequested>((event, emit) async {
@@ -360,10 +387,13 @@ class MapBloc extends Bloc<MapEvent, MapState> {
         await mapRepository.addFeature(event.layerUrl, newFeature);
         add(LoadMapData(event.layerUrl)); // Refresh
       } catch (e) {
-        emit(MapError(e.toString(),
-          isOfflineMode: state.isOfflineMode,
-          offlineMapPath: state.offlineMapPath,
-        ));
+        emit(
+          MapError(
+            e.toString(),
+            isOfflineMode: state.isOfflineMode,
+            offlineMapPath: state.offlineMapPath,
+          ),
+        );
       }
     });
 
@@ -375,10 +405,13 @@ class MapBloc extends Bloc<MapEvent, MapState> {
 
         if (table == null) {
           debugPrint('Feature table is null for layer: ${layer.name}');
-          emit(MapError('Cannot collect data: Layer "${layer.name}" has no feature table.',
-            isOfflineMode: state.isOfflineMode,
-            offlineMapPath: state.offlineMapPath,
-          ));
+          emit(
+            MapError(
+              'Cannot collect data: Layer "${layer.name}" has no feature table.',
+              isOfflineMode: state.isOfflineMode,
+              offlineMapPath: state.offlineMapPath,
+            ),
+          );
           return;
         }
 
@@ -389,37 +422,48 @@ class MapBloc extends Bloc<MapEvent, MapState> {
         }
 
         if (!table.canAdd()) {
-          emit(MapError('You do not have permission to add features to this layer.',
-            isOfflineMode: state.isOfflineMode,
-            offlineMapPath: state.offlineMapPath,
-          ));
+          emit(
+            MapError(
+              'You do not have permission to add features to this layer.',
+              isOfflineMode: state.isOfflineMode,
+              offlineMapPath: state.offlineMapPath,
+            ),
+          );
           return;
         }
 
         final editableFields = _getCollectionFields(table);
 
         if (editableFields.isEmpty) {
-          emit(CollectionState.error('No editable fields available for collection.',
-            isOfflineMode: state.isOfflineMode,
-          ));
+          emit(
+            CollectionState.error(
+              'No editable fields available for collection.',
+              isOfflineMode: state.isOfflineMode,
+            ),
+          );
           return;
         }
 
-        emit(CollectionState(
-          mode: CollectionMode.pickingLocation,
-          targetLayer: layer,
-          editableFields: editableFields,
-          draftFeature: GisFeature(id: '', attributes: {}),
-          isNewFeature: true,
-          isOfflineMode: state.isOfflineMode,
-          offlineMapPath: state.offlineMapPath,
-        ));
+        emit(
+          CollectionState(
+            mode: CollectionMode.pickingLocation,
+            targetLayer: layer,
+            editableFields: editableFields,
+            draftFeature: GisFeature(id: '', attributes: {}),
+            isNewFeature: true,
+            isOfflineMode: state.isOfflineMode,
+            offlineMapPath: state.offlineMapPath,
+          ),
+        );
       } catch (e) {
         debugPrint('Error starting collection: $e');
-        emit(MapError('Failed to initialize collection: ${e.toString()}',
-          isOfflineMode: state.isOfflineMode,
-          offlineMapPath: state.offlineMapPath,
-        ));
+        emit(
+          MapError(
+            'Failed to initialize collection: ${e.toString()}',
+            isOfflineMode: state.isOfflineMode,
+            offlineMapPath: state.offlineMapPath,
+          ),
+        );
       }
     });
 
@@ -427,16 +471,11 @@ class MapBloc extends Bloc<MapEvent, MapState> {
       if (state is CollectionState) {
         final current = state as CollectionState;
 
-        if (!current.isNewFeature ||
-            current.draftFeature?.geometry == null) {
+        if (!current.isNewFeature || current.draftFeature?.geometry == null) {
           return;
         }
 
-        emit(
-          current.copyWith(
-            mode: CollectionMode.pickingLocation,
-          ),
-        );
+        emit(current.copyWith(mode: CollectionMode.pickingLocation));
       }
     });
 
@@ -458,18 +497,11 @@ class MapBloc extends Bloc<MapEvent, MapState> {
       debugPrint('======================================');
 
       if (table != null && table.hasZ) {
-        final currentZ = geometry is ArcGISPoint
-            ? geometry.z
-            : null;
+        final currentZ = geometry is ArcGISPoint ? geometry.z : null;
 
-        final z = currentZ != null && currentZ.isFinite
-            ? currentZ
-            : 0.0;
+        final z = currentZ != null && currentZ.isFinite ? currentZ : 0.0;
 
-        geometry = GeometryEngine.setZ(
-          geometry: geometry,
-          z: z,
-        );
+        geometry = GeometryEngine.setZ(geometry: geometry, z: z);
 
         debugPrint('Z-aware geometry created');
         debugPrint('Z value: $z');
@@ -486,12 +518,9 @@ class MapBloc extends Bloc<MapEvent, MapState> {
         attributes: newAttributes,
       );
 
-      // DEBUG ONLY
+      // for DEBUG
       if (capturedFeature != null) {
-        _debugPrintFeatureSnapshot(
-          'AFTER LOCATION CAPTURE',
-          capturedFeature,
-        );
+        _debugPrintFeatureSnapshot('AFTER LOCATION CAPTURE', capturedFeature);
       }
 
       emit(
@@ -501,9 +530,6 @@ class MapBloc extends Bloc<MapEvent, MapState> {
         ),
       );
     });
-
-
-
 
     on<UpdateDraftAttributes>((event, emit) {
       if (state is CollectionState) {
@@ -528,11 +554,17 @@ class MapBloc extends Bloc<MapEvent, MapState> {
     on<AddDraftAttachment>((event, emit) {
       if (state is CollectionState) {
         final current = state as CollectionState;
-        final newAttachments = List<File>.from(current.draftFeature?.attachments ?? []);
+        final newAttachments = List<File>.from(
+          current.draftFeature?.attachments ?? [],
+        );
         newAttachments.add(event.file);
-        emit(current.copyWith(
-          draftFeature: current.draftFeature?.copyWith(attachments: newAttachments),
-        ));
+        emit(
+          current.copyWith(
+            draftFeature: current.draftFeature?.copyWith(
+              attachments: newAttachments,
+            ),
+          ),
+        );
       }
     });
 
@@ -569,10 +601,7 @@ class MapBloc extends Bloc<MapEvent, MapState> {
           return;
         }
 
-        _debugPrintFeatureSnapshot(
-          'BEFORE SUBMIT',
-          feature,
-        );
+        _debugPrintFeatureSnapshot('BEFORE SUBMIT', feature);
 
         // Validate required fields using ArcGIS field metadata.
         final validationError = _validateRequiredFields(current);
@@ -587,27 +616,17 @@ class MapBloc extends Bloc<MapEvent, MapState> {
           return;
         }
 
-        emit(
-          current.copyWith(
-            mode: CollectionMode.submitting,
-          ),
-        );
+        emit(current.copyWith(mode: CollectionMode.submitting));
 
         try {
           final table = layer.featureTable;
 
-          final url = table is ServiceFeatureTable
-              ? table.uri.toString()
-              : '';
+          final url = table is ServiceFeatureTable ? table.uri.toString() : '';
 
           GisFeature savedFeature = feature;
 
           if (current.isEdit) {
-            await mapRepository.updateFeature(
-              url,
-              feature,
-              table: table,
-            );
+            await mapRepository.updateFeature(url, feature, table: table);
           } else {
             savedFeature = await mapRepository.addFeature(
               url,
@@ -617,9 +636,7 @@ class MapBloc extends Bloc<MapEvent, MapState> {
           }
 
           _debugPrintFeatureSnapshot(
-            current.isEdit
-                ? 'AFTER UPDATE'
-                : 'AFTER ADD / SERVER SAVE',
+            current.isEdit ? 'AFTER UPDATE' : 'AFTER ADD / SERVER SAVE',
             savedFeature,
           );
 
@@ -631,11 +648,7 @@ class MapBloc extends Bloc<MapEvent, MapState> {
               ),
             );
           } else {
-            add(
-              RefreshMapRequested(
-                layerUrl: url,
-              ),
-            );
+            add(RefreshMapRequested(layerUrl: url));
 
             emit(
               current.copyWith(
@@ -661,20 +674,25 @@ class MapBloc extends Bloc<MapEvent, MapState> {
         await table.load();
         final editableFields = _getCollectionFields(table);
 
-        emit(CollectionState(
-          mode: CollectionMode.fillingForm,
-          targetLayer: event.layer,
-          editableFields: editableFields,
-          draftFeature: event.feature,
-          isEdit: true,
-          isOfflineMode: state.isOfflineMode,
-          offlineMapPath: state.offlineMapPath,
-        ));
+        emit(
+          CollectionState(
+            mode: CollectionMode.fillingForm,
+            targetLayer: event.layer,
+            editableFields: editableFields,
+            draftFeature: event.feature,
+            isEdit: true,
+            isOfflineMode: state.isOfflineMode,
+            offlineMapPath: state.offlineMapPath,
+          ),
+        );
       } catch (e) {
-        emit(MapError('Failed to start editing: $e',
-          isOfflineMode: state.isOfflineMode,
-          offlineMapPath: state.offlineMapPath,
-        ));
+        emit(
+          MapError(
+            'Failed to start editing: $e',
+            isOfflineMode: state.isOfflineMode,
+            offlineMapPath: state.offlineMapPath,
+          ),
+        );
       }
     });
 
@@ -688,31 +706,11 @@ class MapBloc extends Bloc<MapEvent, MapState> {
 
         final editableFields = _getCollectionFields(table);
 
-        // ---------------------------------------------------------
-        // COPY USER-ENTERED / EDITABLE ATTRIBUTES
-        // ---------------------------------------------------------
-        //
-        // We intentionally copy only editable fields.
-        //
-        // This prevents copying:
-        // - OBJECTID
-        // - GlobalID
-        // - CreationDate
-        // - Creator
-        // - EditDate
-        // - Editor
-        // - esrignss_* GPS/system metadata
-        // - esrisnsr_* GPS/system metadata
-        //
-        // The new feature must get its own system values.
-        // ---------------------------------------------------------
-
         final copiedAttributes = <String, dynamic>{};
 
         for (final field in editableFields) {
           if (event.feature.attributes.containsKey(field.name)) {
-            copiedAttributes[field.name] =
-            event.feature.attributes[field.name];
+            copiedAttributes[field.name] = event.feature.attributes[field.name];
           }
         }
 
@@ -732,22 +730,15 @@ class MapBloc extends Bloc<MapEvent, MapState> {
             editableFields: editableFields,
 
             draftFeature: GisFeature(
-              // New feature → server/local DB will assign ID.
               id: '',
 
-              // Initially keep the original geometry.
               geometry: event.feature.geometry,
 
-              // Copy the user's entered fields.
               attributes: copiedAttributes,
             ),
 
-            // IMPORTANT:
-            // This is a NEW feature, not an edit.
             isEdit: false,
 
-            // IMPORTANT:
-            // This enables UPDATE POINT.
             isNewFeature: true,
 
             isOfflineMode: state.isOfflineMode,
@@ -919,15 +910,20 @@ class MapBloc extends Bloc<MapEvent, MapState> {
         if (!state.isOfflineMode) {
           add(RefreshMapRequested(layerUrl: url));
         }
-        emit(MapInitial(
-          isOfflineMode: state.isOfflineMode,
-          offlineMapPath: state.offlineMapPath,
-        ));
+        emit(
+          MapInitial(
+            isOfflineMode: state.isOfflineMode,
+            offlineMapPath: state.offlineMapPath,
+          ),
+        );
       } catch (e) {
-        emit(MapError('Failed to delete feature: $e',
-          isOfflineMode: state.isOfflineMode,
-          offlineMapPath: state.offlineMapPath,
-        ));
+        emit(
+          MapError(
+            'Failed to delete feature: $e',
+            isOfflineMode: state.isOfflineMode,
+            offlineMapPath: state.offlineMapPath,
+          ),
+        );
       }
     });
 
@@ -937,10 +933,12 @@ class MapBloc extends Bloc<MapEvent, MapState> {
       if (event.layerUrl != null) {
         add(LoadMapData(event.layerUrl!));
       } else {
-        emit(MapInitial(
-          isOfflineMode: state.isOfflineMode,
-          offlineMapPath: state.offlineMapPath,
-        ));
+        emit(
+          MapInitial(
+            isOfflineMode: state.isOfflineMode,
+            offlineMapPath: state.offlineMapPath,
+          ),
+        );
       }
     });
 
@@ -969,12 +967,7 @@ class MapBloc extends Bloc<MapEvent, MapState> {
         }
 
         // Start downloading
-        add(
-          UpdateOfflineProgress(
-            downloadProgress: 0.0,
-            isDownloading: true,
-          ),
-        );
+        add(UpdateOfflineProgress(downloadProgress: 0.0, isDownloading: true));
 
         final job = await mapRepository.generateOfflineMap(
           onlineMap: event.onlineMap,
@@ -1004,26 +997,25 @@ class MapBloc extends Bloc<MapEvent, MapState> {
         for (final entry in result.layerErrors.entries) {
           debugPrint(
             'OFFLINE LAYER ERROR -> '
-                '"${entry.key.name}": ${entry.value.message}',
+            '"${entry.key.name}": ${entry.value.message}',
           );
         }
 
         for (final entry in result.tableErrors.entries) {
           debugPrint(
             'OFFLINE TABLE ERROR -> '
-                '"${entry.key.tableName}": ${entry.value.message}',
+            '"${entry.key.tableName}": ${entry.value.message}',
           );
         }
 
         if (result.hasErrors) {
           final errors = <String>[
             ...result.layerErrors.entries.map(
-                  (entry) =>
-              'Layer "${entry.key.name}": ${entry.value.message}',
+              (entry) => 'Layer "${entry.key.name}": ${entry.value.message}',
             ),
             ...result.tableErrors.entries.map(
-                  (entry) =>
-              'Table "${entry.key.tableName}": ${entry.value.message}',
+              (entry) =>
+                  'Table "${entry.key.tableName}": ${entry.value.message}',
             ),
           ];
 
@@ -1039,10 +1031,7 @@ class MapBloc extends Bloc<MapEvent, MapState> {
 
         final prefs = await SharedPreferences.getInstance();
 
-        await prefs.setString(
-          'offline_map_path',
-          downloadPath,
-        );
+        await prefs.setString('offline_map_path', downloadPath);
 
         add(
           UpdateOfflineProgress(
@@ -1062,12 +1051,7 @@ class MapBloc extends Bloc<MapEvent, MapState> {
           ),
         );
 
-        add(
-          UpdateOfflineProgress(
-            downloadProgress: 0.0,
-            isDownloading: false,
-          ),
-        );
+        add(UpdateOfflineProgress(downloadProgress: 0.0, isDownloading: false));
       }
     });
 
@@ -1085,17 +1069,11 @@ class MapBloc extends Bloc<MapEvent, MapState> {
       try {
         final prefs = await SharedPreferences.getInstance();
 
-        // IMPORTANT:
         // Do NOT delete the offline map.
         // We only leave offline mode.
         final path = prefs.getString('offline_map_path');
 
-        emit(
-          MapInitial(
-            isOfflineMode: false,
-            offlineMapPath: path,
-          ),
-        );
+        emit(MapInitial(isOfflineMode: false, offlineMapPath: path));
 
         debugPrint('========== OFFLINE MODE EXITED ==========');
       } catch (e) {
@@ -1117,27 +1095,31 @@ class MapBloc extends Bloc<MapEvent, MapState> {
         add(UpdateOfflineProgress(isSyncing: true));
 
         job.onProgressChanged.listen((progress) {
-          add(UpdateOfflineProgress(
-            syncProgress: progress / 100.0,
-            isSyncing: true,
-          ));
+          add(
+            UpdateOfflineProgress(
+              syncProgress: progress / 100.0,
+              isSyncing: true,
+            ),
+          );
         });
 
         final result = await job.run();
 
         if (result.hasErrors) {
-          throw Exception('ArcGIS reported errors while synchronizing the offline map.');
+          throw Exception(
+            'ArcGIS reported errors while synchronizing the offline map.',
+          );
         }
 
-        add(UpdateOfflineProgress(
-          syncProgress: 1.0,
-          isSyncing: false,
-        ));
+        add(UpdateOfflineProgress(syncProgress: 1.0, isSyncing: false));
       } catch (e) {
-        emit(MapError('Failed to sync changes: $e',
-          isOfflineMode: state.isOfflineMode,
-          offlineMapPath: state.offlineMapPath,
-        ));
+        emit(
+          MapError(
+            'Failed to sync changes: $e',
+            isOfflineMode: state.isOfflineMode,
+            offlineMapPath: state.offlineMapPath,
+          ),
+        );
         add(UpdateOfflineProgress(isSyncing: false));
       }
     });
@@ -1146,11 +1128,7 @@ class MapBloc extends Bloc<MapEvent, MapState> {
       final path = state.offlineMapPath;
 
       if (path == null) {
-        emit(
-          MapInitial(
-            isOfflineMode: false,
-          ),
-        );
+        emit(MapInitial(isOfflineMode: false));
         return;
       }
 
@@ -1158,15 +1136,8 @@ class MapBloc extends Bloc<MapEvent, MapState> {
         debugPrint('========== REMOVING OFFLINE MAP ==========');
         debugPrint('OFFLINE MAP PATH => $path');
 
-        // First mark the application as ONLINE.
-        // MapPage will switch the MapView to the online map.
         if (state.isOfflineMode) {
-          emit(
-            MapInitial(
-              isOfflineMode: false,
-              offlineMapPath: path,
-            ),
-          );
+          emit(MapInitial(isOfflineMode: false, offlineMapPath: path));
         }
 
         // Remove the offline package from disk.
@@ -1177,12 +1148,7 @@ class MapBloc extends Bloc<MapEvent, MapState> {
         await prefs.remove('offline_map_path');
 
         // Final state: no offline map exists.
-        emit(
-          MapInitial(
-            isOfflineMode: false,
-            offlineMapPath: null,
-          ),
-        );
+        emit(MapInitial(isOfflineMode: false, offlineMapPath: null));
 
         debugPrint('========== OFFLINE MAP REMOVED ==========');
       } catch (e) {
@@ -1203,92 +1169,85 @@ class MapBloc extends Bloc<MapEvent, MapState> {
     });
 
     on<CancelCollection>((event, emit) {
-      emit(MapInitial(
-        isOfflineMode: state.isOfflineMode,
-        offlineMapPath: state.offlineMapPath,
-      ));
+      emit(
+        MapInitial(
+          isOfflineMode: state.isOfflineMode,
+          offlineMapPath: state.offlineMapPath,
+        ),
+      );
     });
 
     on<PageInitialized>((event, emit) async {
       final prefs = await SharedPreferences.getInstance();
       final path = prefs.getString('offline_map_path');
 
-      emit(MapInitial(
-        offlineMapPath: path,
-        isOfflineMode: state.isOfflineMode,
-      ));
-});;
-}
+      emit(
+        MapInitial(offlineMapPath: path, isOfflineMode: state.isOfflineMode),
+      );
+    });
+    ;
+  }
 
-void _debugPrintFeatureSnapshot(
-String stage,
-GisFeature feature,
-) {
-debugPrint('');
-debugPrint('==================================================');
-debugPrint('             GIS FEATURE DEBUG');
-debugPrint('==================================================');
+  void _debugPrintFeatureSnapshot(String stage, GisFeature feature) {
+    debugPrint('');
+    debugPrint('==================================================');
+    debugPrint('             GIS FEATURE DEBUG');
+    debugPrint('==================================================');
 
-debugPrint('STAGE        : $stage');
-debugPrint('FEATURE ID   : ${feature.id}');
-debugPrint('ATTACHMENTS  : ${feature.attachments.length}');
+    debugPrint('STAGE        : $stage');
+    debugPrint('FEATURE ID   : ${feature.id}');
+    debugPrint('ATTACHMENTS  : ${feature.attachments.length}');
 
-debugPrint('');
-debugPrint('---------------- GEOMETRY ----------------');
+    debugPrint('');
+    debugPrint('---------------- GEOMETRY ----------------');
 
-final geometry = feature.geometry;
+    final geometry = feature.geometry;
 
-if (geometry == null) {
-debugPrint('Geometry     : NULL');
-} else {
-debugPrint('Type         : ${geometry.runtimeType}');
-debugPrint('Spatial Ref  : ${geometry.spatialReference}');
+    if (geometry == null) {
+      debugPrint('Geometry     : NULL');
+    } else {
+      debugPrint('Type         : ${geometry.runtimeType}');
+      debugPrint('Spatial Ref  : ${geometry.spatialReference}');
 
-if (geometry is ArcGISPoint) {
-debugPrint('X            : ${geometry.x}');
-debugPrint('Y            : ${geometry.y}');
-debugPrint('Z            : ${geometry.z}');
-} else {
-debugPrint('Geometry     : $geometry');
-}
-}
+      if (geometry is ArcGISPoint) {
+        debugPrint('X            : ${geometry.x}');
+        debugPrint('Y            : ${geometry.y}');
+        debugPrint('Z            : ${geometry.z}');
+      } else {
+        debugPrint('Geometry     : $geometry');
+      }
+    }
 
-debugPrint('');
-debugPrint('---------------- ATTRIBUTES ----------------');
+    debugPrint('');
+    debugPrint('---------------- ATTRIBUTES ----------------');
 
-if (feature.attributes.isEmpty) {
-debugPrint('No attributes');
-} else {
-for (final entry in feature.attributes.entries) {
-debugPrint(
-'${entry.key.padRight(35)} : ${entry.value}',
-);
-}
-}
+    if (feature.attributes.isEmpty) {
+      debugPrint('No attributes');
+    } else {
+      for (final entry in feature.attributes.entries) {
+        debugPrint('${entry.key.padRight(35)} : ${entry.value}');
+      }
+    }
 
-debugPrint('');
-debugPrint('---------------- ATTACHMENTS ----------------');
+    debugPrint('');
+    debugPrint('---------------- ATTACHMENTS ----------------');
 
-if (feature.attachments.isEmpty) {
-debugPrint('No attachments');
-} else {
-for (int i = 0; i < feature.attachments.length; i++) {
-final file = feature.attachments[i];
+    if (feature.attachments.isEmpty) {
+      debugPrint('No attachments');
+    } else {
+      for (int i = 0; i < feature.attachments.length; i++) {
+        final file = feature.attachments[i];
 
-debugPrint(
-'${i + 1}. ${file.path}',
-);
-}
-}
+        debugPrint('${i + 1}. ${file.path}');
+      }
+    }
 
-debugPrint('');
-debugPrint('==================================================');
-debugPrint('');
-}
+    debugPrint('');
+    debugPrint('==================================================');
+    debugPrint('');
+  }
 
-String? _validateRequiredFields(
-  CollectionState state,
-) {
+  String? _validateRequiredFields(CollectionState state) {
     final feature = state.draftFeature;
 
     if (feature == null) {
@@ -1296,7 +1255,6 @@ String? _validateRequiredFields(
     }
 
     for (final field in state.editableFields) {
-      // ArcGIS schema says this field cannot be null.
       if (field.nullable) {
         continue;
       }
@@ -1305,18 +1263,14 @@ String? _validateRequiredFields(
 
       // Null value
       if (value == null) {
-        final label = field.alias.isNotEmpty
-            ? field.alias
-            : field.name;
+        final label = field.alias.isNotEmpty ? field.alias : field.name;
 
         return '$label is required.';
       }
 
       // Empty string
       if (value is String && value.trim().isEmpty) {
-        final label = field.alias.isNotEmpty
-            ? field.alias
-            : field.name;
+        final label = field.alias.isNotEmpty ? field.alias : field.name;
 
         return '$label is required.';
       }
@@ -1325,9 +1279,10 @@ String? _validateRequiredFields(
     return null;
   }
 
-
-
-  MapState _mapStateWithOffline(MapState currentState, UpdateOfflineProgress event) {
+  MapState _mapStateWithOffline(
+    MapState currentState,
+    UpdateOfflineProgress event,
+  ) {
     final common = {
       'isOfflineMode': currentState.isOfflineMode,
       'offlineDownloadProgress': event.downloadProgress,
@@ -1399,11 +1354,20 @@ String? _validateRequiredFields(
 
   List<Field> _getCollectionFields(FeatureTable table) {
     final excludedPrefixes = ['esrignss_', 'esrisnsr_'];
-    final excludedNames = ['OBJECTID', 'GlobalID', 'CreationDate', 'Creator', 'EditDate', 'Editor'];
+    final excludedNames = [
+      'OBJECTID',
+      'GlobalID',
+      'CreationDate',
+      'Creator',
+      'EditDate',
+      'Editor',
+    ];
 
     return table.fields.where((field) {
       final name = field.name;
-      final isExcluded = excludedPrefixes.any((prefix) => name.startsWith(prefix)) || excludedNames.contains(name);
+      final isExcluded =
+          excludedPrefixes.any((prefix) => name.startsWith(prefix)) ||
+          excludedNames.contains(name);
       return !isExcluded && field.editable;
     }).toList();
   }

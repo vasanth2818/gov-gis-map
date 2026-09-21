@@ -10,11 +10,12 @@ import 'package:flutter/services.dart';
 class RealNmeaProvider implements NmeaDataProvider {
   final BluetoothClassic _bluetooth = BluetoothClassic();
 
-  static const MethodChannel _platformChannel =
-  MethodChannel('com.example.gov_gis_map/location_settings');
+  static const MethodChannel _platformChannel = MethodChannel(
+    'com.example.gov_gis_map/location_settings',
+  );
 
   final StreamController<String> _nmeaStreamController =
-  StreamController<String>.broadcast();
+      StreamController<String>.broadcast();
 
   StreamSubscription<Uint8List>? _dataSubscription;
   StreamSubscription<int>? _statusSubscription;
@@ -26,16 +27,15 @@ class RealNmeaProvider implements NmeaDataProvider {
 
   Future<bool>? _bluetoothInitialization;
 
-
   StreamSubscription<Device>? _discoveredDeviceSubscription;
 
   final StreamController<Device> _discoveredDeviceController =
-  StreamController<Device>.broadcast();
+      StreamController<Device>.broadcast();
 
-  Stream<Device> get discoveredDevices =>
-      _discoveredDeviceController.stream;
+  Stream<Device> get discoveredDevices => _discoveredDeviceController.stream;
 
   bool _discoveryStarted = false;
+
   /// Standard Bluetooth Classic Serial Port Profile UUID.
   static const String serialPortServiceUuid =
       '00001101-0000-1000-8000-00805f9b34fb';
@@ -78,22 +78,18 @@ class RealNmeaProvider implements NmeaDataProvider {
         'isBluetoothEnabled',
       );
 
-      debugPrint(
-        'GNSS Bluetooth enabled: $enabled',
-      );
+      debugPrint('GNSS Bluetooth enabled: $enabled');
 
       return enabled ?? false;
     } on PlatformException catch (e) {
       debugPrint(
         'GNSS Bluetooth state error: '
-            '${e.code} - ${e.message}',
+        '${e.code} - ${e.message}',
       );
 
       return false;
     } catch (e) {
-      debugPrint(
-        'GNSS Bluetooth state unexpected error: $e',
-      );
+      debugPrint('GNSS Bluetooth state unexpected error: $e');
 
       return false;
     }
@@ -119,15 +115,11 @@ class RealNmeaProvider implements NmeaDataProvider {
     try {
       final result = await _bluetooth.initPermissions();
 
-      debugPrint(
-        'GNSS Bluetooth initialization result: $result',
-      );
+      debugPrint('GNSS Bluetooth initialization result: $result');
 
       return result;
     } catch (e) {
-      debugPrint(
-        'GNSS Bluetooth permission error: $e',
-      );
+      debugPrint('GNSS Bluetooth permission error: $e');
 
       return false;
     } finally {
@@ -160,8 +152,8 @@ class RealNmeaProvider implements NmeaDataProvider {
 
       debugPrint(
         'GNSS: Connecting to '
-            '${device.name ?? 'Unknown device'} '
-            '(${device.address})',
+        '${device.name ?? 'Unknown device'} '
+        '(${device.address})',
       );
 
       // Start listening before the receiver is connected.
@@ -184,7 +176,7 @@ class RealNmeaProvider implements NmeaDataProvider {
 
       debugPrint(
         'GNSS: Connected to '
-            '${device.name ?? 'Unknown device'}',
+        '${device.name ?? 'Unknown device'}',
       );
 
       return true;
@@ -193,20 +185,13 @@ class RealNmeaProvider implements NmeaDataProvider {
 
       _connected = false;
 
-     // await _stopListening();
+      // await _stopListening();
 
       return false;
     }
   }
 
   Future<void> _stopListening() async {
-    // Do NOT cancel the Bluetooth plugin streams here.
-    //
-    // These subscriptions are kept alive for the lifetime
-    // of RealNmeaProvider to avoid:
-    //
-    // Bad state: Stream has already been listened to.
-
     return;
   }
 
@@ -219,10 +204,6 @@ class RealNmeaProvider implements NmeaDataProvider {
   // }
 
   void _startListening() {
-    // IMPORTANT:
-    // bluetooth_classic streams should not be listened to repeatedly.
-    // Keep the existing subscriptions if they are already active.
-
     if (_dataSubscription == null) {
       _dataSubscription = _bluetooth.onDeviceDataReceived().listen(
         _handleBluetoothData,
@@ -239,7 +220,7 @@ class RealNmeaProvider implements NmeaDataProvider {
 
     if (_statusSubscription == null) {
       _statusSubscription = _bluetooth.onDeviceStatusChanged().listen(
-            (status) {
+        (status) {
           debugPrint('GNSS Bluetooth status: $status');
 
           if (status == Device.disconnected) {
@@ -304,7 +285,7 @@ class RealNmeaProvider implements NmeaDataProvider {
 
     debugPrint(
       'GNSS RX: '
-          '${chunk.replaceAll('\r', '\\r').replaceAll('\n', '\\n')}',
+      '${chunk.replaceAll('\r', '\\r').replaceAll('\n', '\\n')}',
     );
 
     _buffer.write(chunk);
@@ -382,24 +363,21 @@ class RealNmeaProvider implements NmeaDataProvider {
 
     _discoveryStarted = true;
 
-    _discoveredDeviceSubscription =
-        _bluetooth.onDeviceDiscovered().listen(
-              (device) {
-            debugPrint(
-              'GNSS Bluetooth discovered: '
-                  '${device.name ?? 'Unknown'} (${device.address})',
-            );
-
-            if (!_discoveredDeviceController.isClosed) {
-              _discoveredDeviceController.add(device);
-            }
-          },
-          onError: (error) {
-            debugPrint(
-              'GNSS Bluetooth discovery error: $error',
-            );
-          },
+    _discoveredDeviceSubscription = _bluetooth.onDeviceDiscovered().listen(
+      (device) {
+        debugPrint(
+          'GNSS Bluetooth discovered: '
+          '${device.name ?? 'Unknown'} (${device.address})',
         );
+
+        if (!_discoveredDeviceController.isClosed) {
+          _discoveredDeviceController.add(device);
+        }
+      },
+      onError: (error) {
+        debugPrint('GNSS Bluetooth discovery error: $error');
+      },
+    );
   }
 
   Future<bool> startDeviceScan() async {
@@ -412,26 +390,21 @@ class RealNmeaProvider implements NmeaDataProvider {
 
       final result = await _bluetooth.startScan();
 
-      debugPrint(
-        'GNSS: Bluetooth scan started: $result',
-      );
+      debugPrint('GNSS: Bluetooth scan started: $result');
 
       return result;
     } catch (e) {
-      debugPrint(
-        'GNSS: Bluetooth scan failed: $e',
-      );
+      debugPrint('GNSS: Bluetooth scan failed: $e');
       return false;
     }
   }
+
   Future<void> stopDeviceScan() async {
     try {
       await _bluetooth.stopScan();
       debugPrint('GNSS: Bluetooth scan stopped');
     } catch (e) {
-      debugPrint(
-        'GNSS: Bluetooth stop scan error: $e',
-      );
+      debugPrint('GNSS: Bluetooth stop scan error: $e');
     }
   }
 

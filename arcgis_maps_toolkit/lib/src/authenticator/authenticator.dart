@@ -330,8 +330,7 @@ class _AuthenticatorState extends State<Authenticator>
       allowedExtensions: ['pfx'],
     );
 
-    if (filePickerResult.isEmpty ||
-        !mounted) {
+    if (filePickerResult.isEmpty || !mounted) {
       // If the user canceled the file picker, cancel the challenge and end here.
       challenge.cancel();
       return;

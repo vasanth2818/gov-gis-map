@@ -14,7 +14,10 @@ class MapSelectionPage extends StatelessWidget {
       create: (context) => PortalBloc()..add(FetchUserWebMaps()),
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('Maps', style: TextStyle(fontWeight: FontWeight.bold)),
+          title: const Text(
+            'Maps',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
           centerTitle: false,
           actions: [
             // IconButton(icon: const Icon(Icons.search), onPressed: () {}),
@@ -71,7 +74,7 @@ class MapSelectionPage extends StatelessWidget {
 
                             Navigator.of(context).pushNamedAndRemoveUntil(
                               AppRouter.login,
-                                  (route) => false,
+                              (route) => false,
                             );
                           },
                           child: const Text('Sign Out'),
@@ -98,7 +101,10 @@ class MapSelectionPage extends StatelessWidget {
                     padding: EdgeInsets.all(16.0),
                     child: Text(
                       'My maps',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                   ),
                   Expanded(
@@ -107,7 +113,10 @@ class MapSelectionPage extends StatelessWidget {
                       itemBuilder: (context, index) {
                         final map = state.webMaps[index];
                         return ListTile(
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 8,
+                          ),
                           leading: ClipRRect(
                             borderRadius: BorderRadius.circular(4),
                             child: SizedBox(
@@ -117,10 +126,17 @@ class MapSelectionPage extends StatelessWidget {
                                   ? Image.memory(
                                       map.thumbnail!.image!.getEncodedBuffer(),
                                       fit: BoxFit.cover,
-                                      errorBuilder: (context, error, stackTrace) =>
-                                          Container(color: Colors.grey[800], child: const Icon(Icons.map)),
+                                      errorBuilder:
+                                          (context, error, stackTrace) =>
+                                              Container(
+                                                color: Colors.grey[800],
+                                                child: const Icon(Icons.map),
+                                              ),
                                     )
-                                  : Container(color: Colors.grey[800], child: const Icon(Icons.map)),
+                                  : Container(
+                                      color: Colors.grey[800],
+                                      child: const Icon(Icons.map),
+                                    ),
                             ),
                           ),
                           title: Text(

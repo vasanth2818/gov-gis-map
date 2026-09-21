@@ -87,12 +87,10 @@ class _MapPageState extends State<MapPage> {
     );
     _usbGnssTransport = UsbGnssTransport();
 
-    _usbNmeaProvider = UsbNmeaProvider(
-      _usbGnssTransport,
-    );
+    _usbNmeaProvider = UsbNmeaProvider(_usbGnssTransport);
 
     _usbGnssDataSource = NmeaLocationDataSource.withProvider(
-          () => _usbNmeaProvider,
+      () => _usbNmeaProvider,
     );
 
     _initMap();
@@ -139,188 +137,203 @@ class _MapPageState extends State<MapPage> {
     setState(() {});
   }
 
-Future<void> _showGnssProviderDialog() async {
-if (!mounted) return;
+  Future<void> _showGnssProviderDialog() async {
+    if (!mounted) return;
 
-try {
-// ---------------------------------------------------------
-// 1. Request Bluetooth permissions
-// ---------------------------------------------------------
+    try {
+      // ---------------------------------------------------------
+      // 1. Request Bluetooth permissions
+      // ---------------------------------------------------------
 
-if (await Permission.bluetoothScan.isDenied) {
-final scanStatus = await Permission.bluetoothScan.request();
+      if (await Permission.bluetoothScan.isDenied) {
+        final scanStatus = await Permission.bluetoothScan.request();
 
-if (!scanStatus.isGranted) {
-if (!mounted) return;
+        if (!scanStatus.isGranted) {
+          if (!mounted) return;
 
-ScaffoldMessenger.of(context).showSnackBar(
-const SnackBar(
-content: Text(
-'Bluetooth permission is required to find GNSS receivers.',
-),
-),
-);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Bluetooth permission is required to find GNSS receivers.',
+              ),
+            ),
+          );
 
-return;
-}
-}
+          return;
+        }
+      }
 
-if (await Permission.bluetoothConnect.isDenied) {
-final connectStatus = await Permission.bluetoothConnect.request();
+      if (await Permission.bluetoothConnect.isDenied) {
+        final connectStatus = await Permission.bluetoothConnect.request();
 
-if (!connectStatus.isGranted) {
-if (!mounted) return;
+        if (!connectStatus.isGranted) {
+          if (!mounted) return;
 
-ScaffoldMessenger.of(context).showSnackBar(
-const SnackBar(
-content: Text(
-'Bluetooth permission is required to connect to GNSS receiver.',
-),
-),
-);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Bluetooth permission is required to connect to GNSS receiver.',
+              ),
+            ),
+          );
 
-return;
-}
-}
+          return;
+        }
+      }
 
-// ---------------------------------------------------------
-// 2. Check actual Bluetooth POWER state
-// ---------------------------------------------------------
+      // ---------------------------------------------------------
+      // 2. Check actual Bluetooth POWER state
+      // ---------------------------------------------------------
 
-final bluetoothEnabled =
-await _locationChannel.invokeMethod<bool>(
-'isBluetoothEnabled',
-);
+      final bluetoothEnabled = await _locationChannel.invokeMethod<bool>(
+        'isBluetoothEnabled',
+      );
 
-debugPrint(
-'GNSS BLUETOOTH ENABLED = $bluetoothEnabled',
-);
+      debugPrint('GNSS BLUETOOTH ENABLED = $bluetoothEnabled');
 
-if (bluetoothEnabled != true) {
-if (!mounted) return;
+      if (bluetoothEnabled != true) {
+        if (!mounted) return;
 
-ScaffoldMessenger.of(context).showSnackBar(
-const SnackBar(
-content: Text(
-'Bluetooth is OFF. Please turn on Bluetooth and try again.',
-),
-duration: Duration(seconds: 4),
-),
-);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Bluetooth is OFF. Please turn on Bluetooth and try again.',
+            ),
+            duration: Duration(seconds: 4),
+          ),
+        );
 
-return;
-}
+        return;
+      }
 
-// ---------------------------------------------------------
-// 3. Bluetooth is ON → now use bluetooth_classic
-// ---------------------------------------------------------
+      // ---------------------------------------------------------
+      // 3. Bluetooth is ON → now use bluetooth_classic
+      // ---------------------------------------------------------
 
-final initialized =
-await _realNmeaProvider.initializeBluetooth();
+      final initialized = await _realNmeaProvider.initializeBluetooth();
 
-if (!initialized) {
-if (!mounted) return;
+      if (!initialized) {
+        if (!mounted) return;
 
-ScaffoldMessenger.of(context).showSnackBar(
-const SnackBar(
-content: Text(
-'Unable to initialize Bluetooth. Please check Bluetooth permissions.',
-),
-),
-);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Unable to initialize Bluetooth. Please check Bluetooth permissions.',
+            ),
+          ),
+        );
 
-return;
-}
+        return;
+      }
 
-// ---------------------------------------------------------
-// 4. Get paired GNSS devices
-// ---------------------------------------------------------
+      // ---------------------------------------------------------
+      // 4. Get paired GNSS devices
+      // ---------------------------------------------------------
 
-final pairedDevices =
-await _realNmeaProvider.getPairedDevices();
+      final pairedDevices = await _realNmeaProvider.getPairedDevices();
 
-if (!mounted) return;
+      if (!mounted) return;
 
-// Continue with your existing bottom-sheet code...
+      // Continue with your existing bottom-sheet code...
 
-    List<Device> discoveredDevices = [];
-    StreamSubscription<Device>? discoverySubscription;
-    bool scanStarted = false;
+      List<Device> discoveredDevices = [];
+      StreamSubscription<Device>? discoverySubscription;
+      bool scanStarted = false;
 
-    await showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      builder: (sheetContext) {
-        return StatefulBuilder(
-          builder: (context, sheetSetState) {
-            // Start listening only once.
-            discoverySubscription ??= _realNmeaProvider.discoveredDevices
-                .listen((device) {
-                  final alreadyExists = [
-                    ...pairedDevices,
-                    ...discoveredDevices,
-                  ].any((existing) => existing.address == device.address);
+      await showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        builder: (sheetContext) {
+          return StatefulBuilder(
+            builder: (context, sheetSetState) {
+              // Start listening only once.
+              discoverySubscription ??= _realNmeaProvider.discoveredDevices
+                  .listen((device) {
+                    final alreadyExists = [
+                      ...pairedDevices,
+                      ...discoveredDevices,
+                    ].any((existing) => existing.address == device.address);
 
-                  if (alreadyExists) {
-                    return;
-                  }
+                    if (alreadyExists) {
+                      return;
+                    }
 
-                  sheetSetState(() {
-                    discoveredDevices = [...discoveredDevices, device];
+                    sheetSetState(() {
+                      discoveredDevices = [...discoveredDevices, device];
+                    });
+
+                    debugPrint(
+                      'GNSS DISCOVERED: '
+                      '${device.name ?? 'Unknown'} '
+                      '${device.address}',
+                    );
                   });
 
-                  debugPrint(
-                    'GNSS DISCOVERED: '
-                    '${device.name ?? 'Unknown'} '
-                    '${device.address}',
-                  );
+              // Start scanning after the listener is ready.
+              if (!scanStarted) {
+                scanStarted = true;
+
+                _realNmeaProvider.startDeviceScan().then((started) {
+                  debugPrint('GNSS Bluetooth scan started: $started');
                 });
+              }
 
-            // Start scanning after the listener is ready.
-            if (!scanStarted) {
-              scanStarted = true;
+              return SafeArea(
+                child: SizedBox(
+                  height: MediaQuery.of(context).size.height * 0.65,
+                  child: Column(
+                    children: [
+                      const SizedBox(height: 12),
 
-              _realNmeaProvider.startDeviceScan().then((started) {
-                debugPrint('GNSS Bluetooth scan started: $started');
-              });
-            }
-
-            return SafeArea(
-              child: SizedBox(
-                height: MediaQuery.of(context).size.height * 0.65,
-                child: Column(
-                  children: [
-                    const SizedBox(height: 12),
-
-                    const Text(
-                      'Select GNSS Receiver',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
+                      const Text(
+                        'Select GNSS Receiver',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
-                    ),
 
-                    const SizedBox(height: 8),
+                      const SizedBox(height: 8),
 
-                    const Text(
-                      'Bluetooth devices',
-                      style: TextStyle(color: Colors.grey),
-                    ),
+                      const Text(
+                        'Bluetooth devices',
+                        style: TextStyle(color: Colors.grey),
+                      ),
 
-                    const Divider(),
+                      const Divider(),
 
-                    Expanded(
-                      child: ListView(
-                        children: [
-                          // ==========================================
-                          // PAIRED DEVICES
-                          // ==========================================
+                      Expanded(
+                        child: ListView(
+                          children: [
+                            // ==========================================
+                            // PAIRED DEVICES
+                            // ==========================================
 
-                          if (pairedDevices.isNotEmpty) ...[
+                            if (pairedDevices.isNotEmpty) ...[
+                              const Padding(
+                                padding: EdgeInsets.fromLTRB(16, 12, 16, 8),
+                                child: Text(
+                                  'PAIRED DEVICES',
+                                  style: TextStyle(
+                                    color: Colors.grey,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+
+                              ...pairedDevices.map(
+                                (device) => _buildGnssDeviceTile(device),
+                              ),
+                            ],
+
+                            // ==========================================
+                            // AVAILABLE DEVICES
+                            // ==========================================
                             const Padding(
-                              padding: EdgeInsets.fromLTRB(16, 12, 16, 8),
+                              padding: EdgeInsets.fromLTRB(16, 20, 16, 8),
                               child: Text(
-                                'PAIRED DEVICES',
+                                'AVAILABLE DEVICES',
                                 style: TextStyle(
                                   color: Colors.grey,
                                   fontSize: 12,
@@ -329,76 +342,55 @@ if (!mounted) return;
                               ),
                             ),
 
-                            ...pairedDevices.map(
-                              (device) => _buildGnssDeviceTile(device),
-                            ),
-                          ],
-
-                          // ==========================================
-                          // AVAILABLE DEVICES
-                          // ==========================================
-                          const Padding(
-                            padding: EdgeInsets.fromLTRB(16, 20, 16, 8),
-                            child: Text(
-                              'AVAILABLE DEVICES',
-                              style: TextStyle(
-                                color: Colors.grey,
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-
-                          if (discoveredDevices.isEmpty)
-                            const Padding(
-                              padding: EdgeInsets.all(24),
-                              child: Center(
-                                child: Column(
-                                  children: [
-                                    CircularProgressIndicator(),
-                                    SizedBox(height: 12),
-                                    Text('Scanning for Bluetooth devices...'),
-                                  ],
+                            if (discoveredDevices.isEmpty)
+                              const Padding(
+                                padding: EdgeInsets.all(24),
+                                child: Center(
+                                  child: Column(
+                                    children: [
+                                      CircularProgressIndicator(),
+                                      SizedBox(height: 12),
+                                      Text('Scanning for Bluetooth devices...'),
+                                    ],
+                                  ),
                                 ),
+                              )
+                            else
+                              ...discoveredDevices.map(
+                                (device) => _buildGnssDeviceTile(device),
                               ),
-                            )
-                          else
-                            ...discoveredDevices.map(
-                              (device) => _buildGnssDeviceTile(device),
-                            ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-            );
-          },
-        );
-      },
-    );
+              );
+            },
+          );
+        },
+      );
 
-  // Stop scan when bottom sheet closes.
-  try {
-    await _realNmeaProvider.stopDeviceScan();
-  } catch (_) {}
+      // Stop scan when bottom sheet closes.
+      try {
+        await _realNmeaProvider.stopDeviceScan();
+      } catch (_) {}
 
-  await discoverySubscription?.cancel();
+      await discoverySubscription?.cancel();
+    } catch (e, stackTrace) {
+      debugPrint('GNSS PROVIDER ERROR: $e');
+      debugPrint('GNSS PROVIDER STACKTRACE: $stackTrace');
 
-} catch (e, stackTrace) {
-  debugPrint('GNSS PROVIDER ERROR: $e');
-  debugPrint('GNSS PROVIDER STACKTRACE: $stackTrace');
+      if (!mounted) return;
 
-  if (!mounted) return;
-
-  ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(
-      content: Text('Unable to open GNSS provider: $e'),
-      backgroundColor: Colors.red,
-    ),
-  );
-}
-}
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Unable to open GNSS provider: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
 
   Future<void> _connectGnssReceiver(Device device) async {
     if (!mounted) return;
@@ -432,8 +424,7 @@ if (!mounted) return;
       return;
     }
 
-    final receiverName =
-    (device.name?.trim().isNotEmpty ?? false)
+    final receiverName = (device.name?.trim().isNotEmpty ?? false)
         ? device.name!.trim()
         : 'External GNSS Receiver';
 
@@ -443,9 +434,7 @@ if (!mounted) return;
       _gnssReceiverName = receiverName;
     });
 
-    debugPrint(
-      'GNSS RECEIVER NAME: $_gnssReceiverName',
-    );
+    debugPrint('GNSS RECEIVER NAME: $_gnssReceiverName');
 
     debugPrint(
       'GNSS PROVIDER CONNECTED: '
@@ -524,10 +513,7 @@ if (!mounted) return;
 
                   const Text(
                     'Select USB GNSS Receiver',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                   ),
 
                   const SizedBox(height: 8),
@@ -546,25 +532,22 @@ if (!mounted) return;
                         final device = devices[index];
 
                         final name =
-                        device.productName?.trim().isNotEmpty == true
+                            device.productName?.trim().isNotEmpty == true
                             ? device.productName!.trim()
                             : device.deviceName;
 
                         final manufacturer =
-                        device.manufacturerName?.trim().isNotEmpty == true
+                            device.manufacturerName?.trim().isNotEmpty == true
                             ? device.manufacturerName!.trim()
                             : 'Unknown manufacturer';
 
                         return ListTile(
-                          leading: const Icon(
-                            Icons.usb,
-                            color: Colors.blue,
-                          ),
+                          leading: const Icon(Icons.usb, color: Colors.blue),
                           title: Text(name),
                           subtitle: Text(
                             '$manufacturer\n'
-                                'VID: ${device.vid ?? '-'}  '
-                                'PID: ${device.pid ?? '-'}',
+                            'VID: ${device.vid ?? '-'}  '
+                            'PID: ${device.pid ?? '-'}',
                           ),
                           isThreeLine: true,
                           trailing: const Icon(Icons.chevron_right),
@@ -600,8 +583,7 @@ if (!mounted) return;
   Future<void> _connectUsbGnssReceiver(UsbDevice device) async {
     if (!mounted) return;
 
-    final receiverName =
-    device.productName?.trim().isNotEmpty == true
+    final receiverName = device.productName?.trim().isNotEmpty == true
         ? device.productName!.trim()
         : device.deviceName;
 
@@ -628,9 +610,7 @@ if (!mounted) return;
 
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text(
-              'Could not connect to the USB GNSS receiver.',
-            ),
+            content: Text('Could not connect to the USB GNSS receiver.'),
           ),
         );
 
@@ -837,18 +817,18 @@ if (!mounted) return;
 
   FeatureLayer? get _firstEditableLayer {
     try {
-      return _map.operationalLayers.whereType<FeatureLayer>().firstWhere(
-            (layer) {
-          // Only allow adding to a layer that is currently visible.
-          if (!layer.isVisible) {
-            return false;
-          }
+      return _map.operationalLayers.whereType<FeatureLayer>().firstWhere((
+        layer,
+      ) {
+        // Only allow adding to a layer that is currently visible.
+        if (!layer.isVisible) {
+          return false;
+        }
 
-          final table = layer.featureTable;
+        final table = layer.featureTable;
 
-          return table != null && table.canAdd();
-        },
-      );
+        return table != null && table.canAdd();
+      });
     } catch (_) {
       return null;
     }
@@ -922,10 +902,7 @@ if (!mounted) return;
               attributes: attributes,
             );
 
-            // ----------------------------------------------------------
-            // IMPORTANT:
             // Use the actual Web Map popup.
-            // ----------------------------------------------------------
 
             Popup? popup;
 
@@ -1112,7 +1089,6 @@ if (!mounted) return;
 
       if (!mounted) return;
 
-      // IMPORTANT:
       // Existing MapView controller must receive the new online map.
       final controller = _mapController;
 
@@ -1224,7 +1200,6 @@ if (!mounted) return;
   //   }
   //
   //   // ---------------------------------------------------------
-  //   // IMPORTANT:
   //   // Always capture the latest location from the active
   //   // LocationDataSource.
   //   //
@@ -1319,7 +1294,6 @@ if (!mounted) return;
   //   debugPrint('==========================================');
   //
   //   // ---------------------------------------------------------
-  //   // IMPORTANT:
   //   // Pass the WGS84 GNSS point, NOT the map center.
   //   // ---------------------------------------------------------
   //
@@ -1376,9 +1350,7 @@ if (!mounted) return;
         ? _buildAutomaticLocationAttributes(currentLocation)
         : <String, dynamic>{};
 
-    // IMPORTANT:
     // Store LAT/LONG in WGS84 decimal degrees,
-    // not the map's projected coordinates.
     attributes['esrignss_latitude'] = wgs84Point.y;
     attributes['esrignss_longitude'] = wgs84Point.x;
 
@@ -1400,11 +1372,8 @@ if (!mounted) return;
     final controller = _mapController;
 
     if (controller == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Map is not ready yet.'),
-        ),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Map is not ready yet.')));
       return;
     }
 
@@ -1426,9 +1395,7 @@ if (!mounted) return;
         ),
       );
 
-      debugPrint(
-        'CURRENT LOCATION CAPTURE FAILED: No location available.',
-      );
+      debugPrint('CURRENT LOCATION CAPTURE FAILED: No location available.');
 
       return;
     }
@@ -1440,12 +1407,8 @@ if (!mounted) return;
     debugPrint('Fix Type          : $_fixType');
     debugPrint('Original Position : $position');
     debugPrint('Source SR         : ${position.spatialReference}');
-    debugPrint(
-      'Horizontal Accuracy: ${currentLocation.horizontalAccuracy}',
-    );
-    debugPrint(
-      'Vertical Accuracy  : ${currentLocation.verticalAccuracy}',
-    );
+    debugPrint('Horizontal Accuracy: ${currentLocation.horizontalAccuracy}');
+    debugPrint('Vertical Accuracy  : ${currentLocation.verticalAccuracy}');
 
     // Convert the GNSS/GPS position to WGS84.
     final wgs84Geometry = GeometryEngine.project(
@@ -1456,15 +1419,11 @@ if (!mounted) return;
     if (wgs84Geometry is! ArcGISPoint) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text(
-            'Unable to convert current location to WGS84.',
-          ),
+          content: Text('Unable to convert current location to WGS84.'),
         ),
       );
 
-      debugPrint(
-        'CURRENT LOCATION CAPTURE FAILED: WGS84 projection failed.',
-      );
+      debugPrint('CURRENT LOCATION CAPTURE FAILED: WGS84 projection failed.');
 
       return;
     }
@@ -1472,8 +1431,7 @@ if (!mounted) return;
     final wgs84Point = wgs84Geometry;
 
     // Build the normal GNSS/GPS metadata.
-    final attributes =
-    _buildAutomaticLocationAttributes(currentLocation);
+    final attributes = _buildAutomaticLocationAttributes(currentLocation);
 
     // Make latitude/longitude match the feature geometry exactly.
     attributes['esrignss_latitude'] = wgs84Point.y;
@@ -1484,17 +1442,12 @@ if (!mounted) return;
     debugPrint('Latitude          : ${wgs84Point.y}');
     debugPrint('Longitude         : ${wgs84Point.x}');
     debugPrint('Receiver          : $_gnssReceiverName');
-    debugPrint(
-      'Horizontal Accuracy: ${currentLocation.horizontalAccuracy}',
-    );
+    debugPrint('Horizontal Accuracy: ${currentLocation.horizontalAccuracy}');
     debugPrint('Geometry          : $wgs84Point');
     debugPrint('==============================================');
 
     context.read<MapBloc>().add(
-      LocationCaptured(
-        wgs84Point,
-        attributes: attributes,
-      ),
+      LocationCaptured(wgs84Point, attributes: attributes),
     );
   }
 
@@ -1504,9 +1457,7 @@ if (!mounted) return;
     showModalBottomSheet<void>(
       context: context,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(
-          top: Radius.circular(20),
-        ),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (sheetContext) {
         return SafeArea(
@@ -1528,10 +1479,7 @@ if (!mounted) return;
 
                 const Text(
                   'Select Location',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                 ),
 
                 const SizedBox(height: 16),
@@ -1542,23 +1490,14 @@ if (!mounted) return;
                 ListTile(
                   leading: const CircleAvatar(
                     backgroundColor: Color(0xFFE3F2FD),
-                    child: Icon(
-                      Icons.add_location_alt,
-                      color: Colors.blue,
-                    ),
+                    child: Icon(Icons.add_location_alt, color: Colors.blue),
                   ),
                   title: const Text(
                     'Add Point',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                    ),
+                    style: TextStyle(fontWeight: FontWeight.w600),
                   ),
-                  subtitle: const Text(
-                    'Use the location selected on the map',
-                  ),
-                  trailing: const Icon(
-                    Icons.chevron_right,
-                  ),
+                  subtitle: const Text('Use the location selected on the map'),
+                  trailing: const Icon(Icons.chevron_right),
                   onTap: () {
                     Navigator.of(sheetContext).pop();
 
@@ -1575,23 +1514,14 @@ if (!mounted) return;
                 ListTile(
                   leading: const CircleAvatar(
                     backgroundColor: Color(0xFFE8F5E9),
-                    child: Icon(
-                      Icons.my_location,
-                      color: Colors.green,
-                    ),
+                    child: Icon(Icons.my_location, color: Colors.green),
                   ),
                   title: const Text(
                     'Use Current Location',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                    ),
+                    style: TextStyle(fontWeight: FontWeight.w600),
                   ),
-                  subtitle: const Text(
-                    'Use the latest GPS / GNSS position',
-                  ),
-                  trailing: const Icon(
-                    Icons.chevron_right,
-                  ),
+                  subtitle: const Text('Use the latest GPS / GNSS position'),
+                  trailing: const Icon(Icons.chevron_right),
                   onTap: () {
                     Navigator.of(sheetContext).pop();
 
@@ -1609,8 +1539,8 @@ if (!mounted) return;
   }
 
   Map<String, dynamic> _buildAutomaticLocationAttributes(
-      ArcGISLocation location,
-      ) {
+    ArcGISLocation location,
+  ) {
     final position = location.position;
 
     final attributes = <String, dynamic>{
@@ -1623,26 +1553,21 @@ if (!mounted) return;
       // ---------------------------------------------------------
       // Accuracy
       // ---------------------------------------------------------
-      'esrignss_h_rms':
-      _finiteOrNull(location.horizontalAccuracy),
+      'esrignss_h_rms': _finiteOrNull(location.horizontalAccuracy),
 
-      'esrignss_v_rms':
-      _finiteOrNull(location.verticalAccuracy),
+      'esrignss_v_rms': _finiteOrNull(location.verticalAccuracy),
 
       // ---------------------------------------------------------
       // Movement
       // ---------------------------------------------------------
-      'esrignss_speed':
-      _finiteOrNull(location.speed * 3.6),
+      'esrignss_speed': _finiteOrNull(location.speed * 3.6),
 
-      'esrignss_direction':
-      _finiteOrNull(location.course),
+      'esrignss_direction': _finiteOrNull(location.course),
 
       // ---------------------------------------------------------
       // Fix time
       // ---------------------------------------------------------
-      'esrignss_fixdatetime':
-      location.timestamp,
+      'esrignss_fixdatetime': location.timestamp,
 
       // ---------------------------------------------------------
       // Position source
@@ -1650,8 +1575,7 @@ if (!mounted) return;
       // 2 = Device GPS
       // 3 = External GNSS / NMEA
       // ---------------------------------------------------------
-      'esrignss_positionsourcetype':
-      location is NmeaLocation ? 3 : 2,
+      'esrignss_positionsourcetype': location is NmeaLocation ? 3 : 2,
 
       // ---------------------------------------------------------
       // IMPORTANT:
@@ -1661,8 +1585,7 @@ if (!mounted) return;
       //
       // because both Mock GNSS and Real DGPS produce NmeaLocation.
       // ---------------------------------------------------------
-      'esrignss_receiver':
-      _gnssReceiverName,
+      'esrignss_receiver': _gnssReceiverName,
     };
 
     // ---------------------------------------------------------
@@ -1672,34 +1595,26 @@ if (!mounted) return;
     if (location is NmeaLocation) {
       attributes.addAll({
         // Altitude
-        'esrignss_altitude':
-        _finiteOrNull(location.heightAboveGeoid),
+        'esrignss_altitude': _finiteOrNull(location.heightAboveGeoid),
 
         // DOP
-        'esrignss_pdop':
-        _finiteOrNull(location.pdop),
+        'esrignss_pdop': _finiteOrNull(location.pdop),
 
-        'esrignss_hdop':
-        _finiteOrNull(location.hdop),
+        'esrignss_hdop': _finiteOrNull(location.hdop),
 
-        'esrignss_vdop':
-        _finiteOrNull(location.vdop),
+        'esrignss_vdop': _finiteOrNull(location.vdop),
 
         // DGPS correction information
-        'esrignss_correctionage':
-        _finiteOrNull(location.dgpsAge),
+        'esrignss_correctionage': _finiteOrNull(location.dgpsAge),
 
         // Reference station ID
-        'esrignss_stationid':
-        location.referenceStationId,
+        'esrignss_stationid': location.referenceStationId,
 
         // Satellites
-        'esrignss_numsats':
-        location.satellites.length,
+        'esrignss_numsats': location.satellites.length,
 
         // NMEA fix type
-        'esrignss_fixtype':
-        _getNmeaFixTypeCode(location.fixType),
+        'esrignss_fixtype': _getNmeaFixTypeCode(location.fixType),
       });
     }
 
@@ -1707,9 +1622,7 @@ if (!mounted) return;
     // Remove unavailable values.
     // ---------------------------------------------------------
 
-    attributes.removeWhere(
-          (key, value) => value == null,
-    );
+    attributes.removeWhere((key, value) => value == null);
 
     return attributes;
   }
@@ -1842,7 +1755,7 @@ if (!mounted) return;
 
         case 'USB GNSS':
           _gnssReceiverName =
-          _selectedUsbDevice?.productName?.trim().isNotEmpty == true
+              _selectedUsbDevice?.productName?.trim().isNotEmpty == true
               ? _selectedUsbDevice!.productName!.trim()
               : 'External USB GNSS';
 
@@ -1893,7 +1806,6 @@ if (!mounted) return;
         _fixType = 'SIMULATED GNSS';
         _gnssReceiverName = 'Mock GNSS';
       });
-
     } else if (provider == 'Real GNSS') {
       _mockNmeaProvider.stopSimulation();
 
@@ -1929,38 +1841,33 @@ if (!mounted) return;
           _gnssReceiverName = 'External GNSS Receiver';
         }
       });
-    }
-    else if (provider == 'USB GNSS') {
+    } else if (provider == 'USB GNSS') {
       _mockNmeaProvider.stopSimulation();
 
       if (_usbGnssDataSource == null) {
         _usbGnssDataSource = NmeaLocationDataSource.withProvider(
-              () => _usbNmeaProvider,
+          () => _usbNmeaProvider,
         );
       }
 
       _currentLocationDataSource = _usbGnssDataSource!;
 
-      _satellitesSubscription =
-          _usbGnssDataSource!.onSatellitesChanged.listen(
-                (satelliteInfos) {
-              if (!mounted) return;
+      _satellitesSubscription = _usbGnssDataSource!.onSatellitesChanged.listen((
+        satelliteInfos,
+      ) {
+        if (!mounted) return;
 
-              setState(() {
-                _satelliteCount = satelliteInfos.length;
-              });
+        setState(() {
+          _satelliteCount = satelliteInfos.length;
+        });
 
-              debugPrint(
-                'USB GNSS SATELLITES: ${satelliteInfos.length}',
-              );
-            },
-          );
+        debugPrint('USB GNSS SATELLITES: ${satelliteInfos.length}');
+      });
 
       setState(() {
         _fixType = 'USB GNSS';
       });
-    }
-    else {
+    } else {
       _mockNmeaProvider.stopSimulation();
 
       _currentLocationDataSource = _locationDataSource;
@@ -2308,15 +2215,15 @@ if (!mounted) return;
                     ? 'Real GNSS'
                     : _currentLocationDataSource == _mockGnssDataSource
                     ? 'Mock GNSS'
-                        : _currentLocationDataSource == _usbGnssDataSource
-                        ? 'USB GNSS'
-                        : 'Device GPS',
+                    : _currentLocationDataSource == _usbGnssDataSource
+                    ? 'USB GNSS'
+                    : 'Device GPS',
                 //currentProvider: _currentLocationDataSource is NmeaLocationDataSource ? 'Mock GNSS' : 'Device GPS',
                 providerStatus: _locationStatus ?? 'Unknown',
                 accuracy: _accuracy,
                 satelliteCount: _satelliteCount,
                 fixType: _fixType,
-               // onAddProvider: _showGnssProviderDialog,
+                // onAddProvider: _showGnssProviderDialog,
                 onAddProvider: _showGnssTransportDialog,
               ),
             ),
@@ -2523,7 +2430,6 @@ if (!mounted) return;
                       ),
 
                     const SizedBox(height: 12),
-
                   ],
                 ),
               ),
@@ -2573,8 +2479,6 @@ if (!mounted) return;
           // Update ArcGIS layer
           layer.isVisible = value;
 
-          // IMPORTANT:
-          // Rebuild the BottomSheet itself
           sheetSetState(() {});
         },
       ),
@@ -2628,9 +2532,7 @@ if (!mounted) return;
     try {
       ArcGISFeature? serverFeature;
 
-      // ============================================================
-      // 1. GET THE ACTUAL FEATURE FROM ARCGIS SERVER
-      // ============================================================
+      // GET THE ACTUAL FEATURE FROM ARCGIS SERVER
 
       if (feature.id.isNotEmpty) {
         if (table.loadStatus != LoadStatus.loaded) {
@@ -2638,9 +2540,7 @@ if (!mounted) return;
         }
 
         if (table is! ArcGISFeatureTable) {
-          debugPrint(
-            'CREATED POPUP: Table is not an ArcGISFeatureTable',
-          );
+          debugPrint('CREATED POPUP: Table is not an ArcGISFeatureTable');
           return;
         }
 
@@ -2651,7 +2551,7 @@ if (!mounted) return;
 
         debugPrint(
           'CREATED POPUP: Querying server feature '
-              '$objectIdField = ${feature.id}',
+          '$objectIdField = ${feature.id}',
         );
 
         final result = await table.queryFeatures(queryParameters);
@@ -2661,19 +2561,12 @@ if (!mounted) return;
         if (features.isNotEmpty && features.first is ArcGISFeature) {
           serverFeature = features.first as ArcGISFeature;
 
-          debugPrint(
-            'CREATED POPUP: Server feature found: ${feature.id}',
-          );
+          debugPrint('CREATED POPUP: Server feature found: ${feature.id}');
 
-          // IMPORTANT:
-          // Refresh the server feature so attachment information
-          // is available to PopupView.
           if (table is ServiceFeatureTable) {
             await table.loadOrRefreshFeatures([serverFeature]);
 
-            debugPrint(
-              'CREATED POPUP: Server feature refreshed successfully',
-            );
+            debugPrint('CREATED POPUP: Server feature refreshed successfully');
           }
         } else {
           debugPrint(
@@ -2682,19 +2575,15 @@ if (!mounted) return;
         }
       }
 
-      // ============================================================
-      // 2. USE SERVER FEATURE FOR POPUP
-      // ============================================================
+      // USE SERVER FEATURE FOR POPUP
 
       if (serverFeature != null) {
         final popupDefinition =
             table.getPopupDefinitionWithFeature(serverFeature) ??
-                layer.popupDefinition;
+            layer.popupDefinition;
 
         if (popupDefinition == null) {
-          debugPrint(
-            'CREATED POPUP: No popup definition available',
-          );
+          debugPrint('CREATED POPUP: No popup definition available');
           return;
         }
 
@@ -2703,31 +2592,18 @@ if (!mounted) return;
           popupDefinition: popupDefinition,
         );
 
-        debugPrint(
-          'CREATED POPUP: Opening popup using SERVER feature',
-        );
+        debugPrint('CREATED POPUP: Opening popup using SERVER feature');
 
-        _showFeaturePopup(
-          popup: popup,
-          feature: feature,
-          layer: layer,
-        );
+        _showFeaturePopup(popup: popup, feature: feature, layer: layer);
 
         return;
       }
 
-      // ============================================================
-      // 3. FALLBACK
-      // ============================================================
-      // If server query fails, show the old temporary feature popup.
+      // FALLBACK
 
-      debugPrint(
-        'CREATED POPUP: Falling back to temporary feature',
-      );
+      debugPrint('CREATED POPUP: Falling back to temporary feature');
 
-      final arcFeature = table.createFeature(
-        geometry: feature.geometry,
-      );
+      final arcFeature = table.createFeature(geometry: feature.geometry);
 
       for (final entry in feature.attributes.entries) {
         arcFeature.attributes[entry.key] = entry.value;
@@ -2735,12 +2611,10 @@ if (!mounted) return;
 
       final popupDefinition =
           table.getPopupDefinitionWithFeature(arcFeature) ??
-              layer.popupDefinition;
+          layer.popupDefinition;
 
       if (popupDefinition == null) {
-        debugPrint(
-          'CREATED POPUP: No popup definition available in fallback',
-        );
+        debugPrint('CREATED POPUP: No popup definition available in fallback');
         return;
       }
 
@@ -2749,23 +2623,15 @@ if (!mounted) return;
         popupDefinition: popupDefinition,
       );
 
-      _showFeaturePopup(
-        popup: popup,
-        feature: feature,
-        layer: layer,
-      );
+      _showFeaturePopup(popup: popup, feature: feature, layer: layer);
     } catch (e, stackTrace) {
       debugPrint('CREATED FEATURE POPUP ERROR: $e');
       debugPrint('CREATED FEATURE POPUP STACKTRACE: $stackTrace');
 
-      // ============================================================
       // FINAL FALLBACK
-      // ============================================================
 
       try {
-        final arcFeature = table.createFeature(
-          geometry: feature.geometry,
-        );
+        final arcFeature = table.createFeature(geometry: feature.geometry);
 
         for (final entry in feature.attributes.entries) {
           arcFeature.attributes[entry.key] = entry.value;
@@ -2773,7 +2639,7 @@ if (!mounted) return;
 
         final popupDefinition =
             table.getPopupDefinitionWithFeature(arcFeature) ??
-                layer.popupDefinition;
+            layer.popupDefinition;
 
         if (popupDefinition == null) return;
 
@@ -2782,131 +2648,18 @@ if (!mounted) return;
           popupDefinition: popupDefinition,
         );
 
-        _showFeaturePopup(
-          popup: popup,
-          feature: feature,
-          layer: layer,
-        );
+        _showFeaturePopup(popup: popup, feature: feature, layer: layer);
       } catch (fallbackError) {
-        debugPrint(
-          'CREATED POPUP FALLBACK ERROR: $fallbackError',
-        );
+        debugPrint('CREATED POPUP FALLBACK ERROR: $fallbackError');
       }
     }
   }
 
-  // void _showCreatedFeaturePopup({required GisFeature feature, required FeatureLayer layer,}) {
-  //   if (!mounted) return;
-  //
-  //   final table = layer.featureTable;
-  //
-  //   if (table == null) {
-  //     debugPrint('Cannot show popup: FeatureTable is null');
-  //     return;
-  //   }
-  //
-  //   try {
-  //     // Create an ArcGIS Feature only for PopupView.
-  //     // This does NOT add anything to the FeatureTable.
-  //     final arcFeature = table.createFeature(geometry: feature.geometry);
-  //
-  //     // Copy the already saved attributes into the temporary
-  //     // ArcGIS feature used only for popup rendering.
-  //     for (final entry in feature.attributes.entries) {
-  //       arcFeature.attributes[entry.key] = entry.value;
-  //     }
-  //
-  //     // Prefer the Web Map / layer popup definition.
-  //     final popupDefinition =
-  //         table.getPopupDefinitionWithFeature(arcFeature) ??
-  //         layer.popupDefinition;
-  //
-  //     if (popupDefinition == null) {
-  //       debugPrint('No Web Map popup definition available.');
-  //       return;
-  //     }
-  //
-  //     final popup = Popup(
-  //       geoElement: arcFeature,
-  //       popupDefinition: popupDefinition,
-  //     );
-  //
-  //     _showFeaturePopup(popup: popup, feature: feature, layer: layer);
-  //   } catch (e, stackTrace) {
-  //     debugPrint('CREATED FEATURE POPUP ERROR: $e');
-  //     debugPrint('CREATED FEATURE POPUP STACKTRACE: $stackTrace');
-  //   }
-  // }
-
-  // void _showFeaturePopup({required Popup popup, required GisFeature feature, required FeatureLayer layer,}) {
-  //   if (!mounted) return;
-  //
-  //   showModalBottomSheet<void>(
-  //     context: context,
-  //     isScrollControlled: true,
-  //     useSafeArea: true,
-  //     backgroundColor: Colors.transparent, // Allows custom background styling on the sheet container
-  //     builder: (context) => Container(
-  //       height: MediaQuery.sizeOf(context).height * 0.75,
-  //       decoration: const BoxDecoration(
-  //         color: Colors.white,
-  //         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-  //       ),
-  //       child: Column(
-  //         children: [
-  //           // Drag handle indicator for better UX
-  //           const SizedBox(height: 10),
-  //           Container(
-  //             width: 40,
-  //             height: 4,
-  //             decoration: BoxDecoration(
-  //               color: Colors.grey[300],
-  //               borderRadius: BorderRadius.circular(2),
-  //             ),
-  //           ),
-  //           const SizedBox(height: 5),
-  //
-  //           // Single Clean Header (Removes the top duplicate header)
-  //           Padding(
-  //             padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-  //             child: Row(
-  //               mainAxisAlignment: MainAxisAlignment.spaceBetween,
-  //               children: [
-  //                 Expanded(
-  //                   child: Text(
-  //                     popup.title.isNotEmpty ? popup.title : 'Feature Details',
-  //                     style: const TextStyle(
-  //                       fontSize: 18,
-  //                       fontWeight: FontWeight.bold,
-  //                     ),
-  //                     maxLines: 1,
-  //                     overflow: TextOverflow.ellipsis,
-  //                   ),
-  //                 ),
-  //                 IconButton(
-  //                   icon: const Icon(Icons.close),
-  //                   onPressed: () => Navigator.of(context).pop(),
-  //                 ),
-  //               ],
-  //             ),
-  //           ),
-  //           const Divider(height: 1),
-  //
-  //           // Main Popup Content
-  //           Expanded(
-  //             child: PopupView(
-  //               popup: popup,
-  //               onClose: () {
-  //                 Navigator.of(context).pop();
-  //               },
-  //             ),
-  //           ),
-  //         ],
-  //       ),
-  //     ),
-  //   );
-  // }
-  void _showFeaturePopup({required Popup popup, required GisFeature feature, required FeatureLayer layer,}) {
+  void _showFeaturePopup({
+    required Popup popup,
+    required GisFeature feature,
+    required FeatureLayer layer,
+  }) {
     if (!mounted) return;
 
     showModalBottomSheet<void>(
@@ -3143,7 +2896,7 @@ class _FeatureCollectionFormState extends State<_FeatureCollectionForm> {
     final domain = field.domain;
     final label = field.alias.isNotEmpty ? field.alias : field.name;
 
-    // 1. Coded value domain -> Dropdown
+    //  Dropdown
     if (domain is CodedValueDomain) {
       return _buildDropdownField(
         label: label,
@@ -3365,12 +3118,7 @@ class _FeatureCollectionFormState extends State<_FeatureCollectionForm> {
   void _attachFile(BuildContext context) async {
     final result = await FilePicker.pickFile(
       type: FileType.custom,
-      allowedExtensions: [
-        'pdf',
-        'jpg',
-        'jpeg',
-        'png',
-      ],
+      allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'],
     );
 
     if (result != null && result.path != null) {
@@ -3378,9 +3126,7 @@ class _FeatureCollectionFormState extends State<_FeatureCollectionForm> {
 
       if (!context.mounted) return;
 
-      context.read<MapBloc>().add(
-        AddDraftAttachment(file),
-      );
+      context.read<MapBloc>().add(AddDraftAttachment(file));
     }
   }
 
@@ -3489,10 +3235,7 @@ class _FeatureDetailsSheet extends StatelessWidget {
       ),
       child: Column(
         children: [
-
-          // ============================================================
           // ARCGIS WEB MAP POPUP
-          // ============================================================
           Expanded(
             child: Container(
               color: _backgroundColor,
@@ -3506,9 +3249,7 @@ class _FeatureDetailsSheet extends StatelessWidget {
             ),
           ),
 
-          // ============================================================
           // ACTION BAR
-          // ============================================================
           Container(
             width: double.infinity,
             decoration: const BoxDecoration(

@@ -9,18 +9,12 @@ class LoginPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        centerTitle: true,
-        title:  Text(
-          'Field Survey Login',
-        ),
-      ),
+      appBar: AppBar(centerTitle: true, title: Text('Field Survey Login')),
       body: BlocConsumer<AuthBloc, AuthState>(
         listener: (context, state) {
           if (state is AuthError) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(state.message)),
-            );
+            ScaffoldMessenger.of(context)
+                .showSnackBar(SnackBar(content: Text(state.message)));
           }
           if (state is Authenticated) {
             Navigator.pushReplacementNamed(context, AppRouter.mapSelection);
@@ -41,9 +35,9 @@ class LoginPage extends StatelessWidget {
                   Text(
                     'Government GIS',
                     style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                          color: const Color(0xFF005A9C),
-                          fontWeight: FontWeight.bold,
-                        ),
+                      color: const Color(0xFF005A9C),
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                   const SizedBox(height: 8),
                   const Text('Mobile Field Survey Prototype'),

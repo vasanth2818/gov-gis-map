@@ -30,21 +30,15 @@ class MyApp extends StatelessWidget {
       oAuthUserConfigurations: [oauthConfiguration],
       child: MultiBlocProvider(
         providers: [
+          BlocProvider(create: (context) => AuthBloc()..add(CheckAuthStatus())),
           BlocProvider(
-            create: (context) => AuthBloc()..add(CheckAuthStatus()),
-          ),
-          BlocProvider(
-            create: (context) => MapBloc(
-              mapRepository: mapRepository,
-            ),
+            create: (context) => MapBloc(mapRepository: mapRepository),
           ),
         ],
         child: MaterialApp(
           title: 'GIS Field Survey',
           theme: AppTheme.lightTheme.copyWith(
-            appBarTheme: const AppBarTheme(
-              centerTitle: true,
-            ),
+            appBarTheme: const AppBarTheme(centerTitle: true),
           ),
           themeMode: ThemeMode.light,
           onGenerateRoute: AppRouter.onGenerateRoute,

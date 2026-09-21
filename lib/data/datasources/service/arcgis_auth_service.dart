@@ -1,18 +1,15 @@
 import 'dart:developer';
+
 import 'package:arcgis_maps/arcgis_maps.dart';
 
 class ArcGISAuthService {
-  static const String _portalUrl =
-      'https://www.arcgis.com';
+  static const String _portalUrl = 'https://www.arcgis.com';
 
-  static const String _clientId =
-      'J2aU21TR7GpPuiwk';
+  static const String _clientId = 'J2aU21TR7GpPuiwk';
 
-  static const String _redirectUrl =
-      'my-gis-app://auth';
+  static const String _redirectUrl = 'my-gis-app://auth';
 
-  final OAuthUserConfiguration _configuration =
-  OAuthUserConfiguration(
+  final OAuthUserConfiguration _configuration = OAuthUserConfiguration(
     portalUri: Uri.parse(_portalUrl),
     clientId: _clientId,
     redirectUri: Uri.parse(_redirectUrl),
@@ -25,10 +22,7 @@ class ArcGISAuthService {
       configuration: _configuration,
     );
 
-    ArcGISEnvironment
-        .authenticationManager
-        .arcGISCredentialStore
-        .add(
+    ArcGISEnvironment.authenticationManager.arcGISCredentialStore.add(
       credential: credential,
     );
 
@@ -47,9 +41,7 @@ class ArcGISAuthService {
     log('Portal URL      = ${portal.uri}');
     log('=======================================');
 
-    log(
-      'AUTHENTICATED USER = ${portal.user?.username}',
-    );
+    log('AUTHENTICATED USER = ${portal.user?.username}');
 
     return credential;
   }
@@ -72,10 +64,7 @@ class ArcGISAuthService {
       }
     }
 
-    ArcGISEnvironment
-        .authenticationManager
-        .arcGISCredentialStore
-        .removeAll();
+    ArcGISEnvironment.authenticationManager.arcGISCredentialStore.removeAll();
 
     log('ArcGIS logout completed');
   }
@@ -116,31 +105,23 @@ class ArcGISAuthService {
       sortOrder: PortalQuerySortOrder.ascending,
     );
 
-    final result = await portal.findItems(
-      parameters: queryParams,
-    );
+    final result = await portal.findItems(parameters: queryParams);
 
     await Future.wait(
-      result.results.map(
-        (item) async {
-          try {
-            await item.load();
+      result.results.map((item) async {
+        try {
+          await item.load();
 
-            if (item.thumbnail != null) {
-              await item.thumbnail!.load();
-            }
-          } catch (e) {
-            log(
-              'Error loading item ${item.itemId}: $e',
-            );
+          if (item.thumbnail != null) {
+            await item.thumbnail!.load();
           }
-        },
-      ),
+        } catch (e) {
+          log('Error loading item ${item.itemId}: $e');
+        }
+      }),
     );
 
-    log(
-      'Found ${result.results.length} web maps',
-    );
+    log('Found ${result.results.length} web maps');
 
     return result.results;
   }

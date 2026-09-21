@@ -1,9 +1,11 @@
 import 'dart:async';
 import 'dart:typed_data';
+
 import 'package:flutter/foundation.dart';
 
 class FakeBluetoothGnssTransport {
-  final StreamController<Uint8List> _nmeaStreamController = StreamController<Uint8List>.broadcast();
+  final StreamController<Uint8List> _nmeaStreamController =
+      StreamController<Uint8List>.broadcast();
 
   Stream<Uint8List> get nmeaStream => _nmeaStreamController.stream;
 

@@ -88,7 +88,7 @@ class GnssStatusWidget extends StatelessWidget {
                       ),
                       DropdownMenuItem(
                         value: 'Real GNSS',
-                          child: Text('Real GNSS'),
+                        child: Text('Real GNSS'),
                       ),
                     ],
                     onChanged: (value) {
@@ -125,8 +125,18 @@ class GnssStatusWidget extends StatelessWidget {
             ],
             const SizedBox(height: 6),
             _buildDataRow('Status', providerStatus, labelStyle, valueStyle),
-            _buildDataRow('Accuracy', '${accuracy.toStringAsFixed(2)} m', labelStyle, valueStyle),
-            _buildDataRow('Satellites', satelliteCount.toString(), labelStyle, valueStyle),
+            _buildDataRow(
+              'Accuracy',
+              '${accuracy.toStringAsFixed(2)} m',
+              labelStyle,
+              valueStyle,
+            ),
+            _buildDataRow(
+              'Satellites',
+              satelliteCount.toString(),
+              labelStyle,
+              valueStyle,
+            ),
             _buildDataRow('Fix Type', fixType, labelStyle, valueStyle),
           ],
         ),
@@ -134,7 +144,12 @@ class GnssStatusWidget extends StatelessWidget {
     );
   }
 
-  Widget _buildDataRow(String label, String value, TextStyle labelStyle, TextStyle valueStyle) {
+  Widget _buildDataRow(
+    String label,
+    String value,
+    TextStyle labelStyle,
+    TextStyle valueStyle,
+  ) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2.0),
       child: Row(

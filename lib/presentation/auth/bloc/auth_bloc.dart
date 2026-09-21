@@ -15,7 +15,6 @@ class LogoutRequested extends AuthEvent {}
 
 class CheckAuthStatus extends AuthEvent {}
 
-
 // States
 abstract class AuthState extends Equatable {
   @override
@@ -23,9 +22,13 @@ abstract class AuthState extends Equatable {
 }
 
 class AuthInitial extends AuthState {}
+
 class AuthLoading extends AuthState {}
+
 class Authenticated extends AuthState {}
+
 class Unauthenticated extends AuthState {}
+
 class AuthError extends AuthState {
   final String message;
   AuthError(this.message);
@@ -39,10 +42,9 @@ class AuthError extends AuthState {
 class AuthBloc extends Bloc<AuthEvent, AuthState> {
   final ArcGISAuthService _authService;
 
-  AuthBloc({
-    ArcGISAuthService? authService,
-  })  : _authService = authService ?? ArcGISAuthService(),
-        super(AuthInitial()) {
+  AuthBloc({ArcGISAuthService? authService})
+    : _authService = authService ?? ArcGISAuthService(),
+      super(AuthInitial()) {
     on<CheckAuthStatus>((event, emit) async {
       final credentials = ArcGISEnvironment
           .authenticationManager

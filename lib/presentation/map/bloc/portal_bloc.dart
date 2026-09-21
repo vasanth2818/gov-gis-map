@@ -18,13 +18,16 @@ abstract class PortalState extends Equatable {
 }
 
 class PortalInitial extends PortalState {}
+
 class PortalLoading extends PortalState {}
+
 class PortalLoaded extends PortalState {
   final List<PortalItem> webMaps;
   PortalLoaded(this.webMaps);
   @override
   List<Object?> get props => [webMaps];
 }
+
 class PortalError extends PortalState {
   final String message;
   PortalError(this.message);
@@ -36,8 +39,8 @@ class PortalBloc extends Bloc<PortalEvent, PortalState> {
   final ArcGISAuthService _authService;
 
   PortalBloc({ArcGISAuthService? authService})
-      : _authService = authService ?? ArcGISAuthService(),
-        super(PortalInitial()) {
+    : _authService = authService ?? ArcGISAuthService(),
+      super(PortalInitial()) {
     on<FetchUserWebMaps>((event, emit) async {
       emit(PortalLoading());
       try {

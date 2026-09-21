@@ -15,17 +15,18 @@ class OfflineMapDataSource {
 
       // Optimization: Limit the scale range to reduce basemap tile count.
       // If we don't specify, it might try to download all LODs.
-      final parameters =
-      await offlineMapTask.createDefaultGenerateOfflineMapParameters(
-        areaOfInterest: areaOfInterest,
-        minScale: currentScale != null ? (currentScale * 2) : 0,
-        maxScale: 250, // High detail, but prevents downloading extreme LODs if unnecessary
-      );
+      final parameters = await offlineMapTask
+          .createDefaultGenerateOfflineMapParameters(
+            areaOfInterest: areaOfInterest,
+            minScale: currentScale != null ? (currentScale * 2) : 0,
+            maxScale: 250, // High detail, but prevents downloading extreme LODs if unnecessary
+          );
       // The offline map must be backed by sync-enabled geodatabases
       // because the app supports offline editing and manual synchronization.
       parameters.updateMode =
           GenerateOfflineMapUpdateMode.syncWithFeatureServices;
-      parameters.includeBasemap = true; // Enable basemap download for offline usability
+      parameters.includeBasemap =
+          true; // Enable basemap download for offline usability
 
       // Include attachments for editable layers and upload newly-created
       // attachments when the offline edits are synchronized.
@@ -40,12 +41,12 @@ class OfflineMapDataSource {
       if (capabilities.hasErrors) {
         final errors = <String>[
           ...capabilities.layerCapabilities.entries.map(
-                (entry) =>
-            'Layer "${entry.key.name}": ${entry.value.error?.message ?? entry.value}',
+            (entry) =>
+                'Layer "${entry.key.name}": ${entry.value.error?.message ?? entry.value}',
           ),
           ...capabilities.tableCapabilities.entries.map(
-                (entry) =>
-            'Table "${entry.key.tableName}": ${entry.value.error?.message ?? entry.value}',
+            (entry) =>
+                'Table "${entry.key.tableName}": ${entry.value.error?.message ?? entry.value}',
           ),
         ];
 
@@ -76,8 +77,9 @@ class OfflineMapDataSource {
 
   Future<OfflineMapSyncJob> syncOfflineMap(String offlineMapPath) async {
     try {
-      final mobileMapPackage =
-      MobileMapPackage.withFileUri(Uri.file(offlineMapPath));
+      final mobileMapPackage = MobileMapPackage.withFileUri(
+        Uri.file(offlineMapPath),
+      );
       await mobileMapPackage.load();
 
       if (mobileMapPackage.maps.isEmpty) {
@@ -86,8 +88,7 @@ class OfflineMapDataSource {
 
       final map = mobileMapPackage.maps.first;
       final syncTask = OfflineMapSyncTask.withMap(map);
-      final parameters =
-      await syncTask.createDefaultOfflineMapSyncParameters();
+      final parameters = await syncTask.createDefaultOfflineMapSyncParameters();
 
       // Bidirectional is the SDK default and allows both local uploads and
       // server-side updates to be applied.

@@ -12,7 +12,7 @@ class UsbNmeaProvider implements NmeaDataProvider {
   final UsbGnssTransport _transport;
 
   final StreamController<String> _nmeaStreamController =
-  StreamController<String>.broadcast();
+      StreamController<String>.broadcast();
 
   StreamSubscription<Uint8List>? _dataSubscription;
 
@@ -41,7 +41,7 @@ class UsbNmeaProvider implements NmeaDataProvider {
 
       // First subscribe to the transport.
       _dataSubscription = _transport.dataStream.listen(
-            (Uint8List data) {
+        (Uint8List data) {
           if (_disposed || _nmeaStreamController.isClosed) {
             return;
           }

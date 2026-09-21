@@ -6,8 +6,9 @@ void main() {
   test('NmeaLocationDataSource processes injected NMEA sentences', () async {
     final realNmeaProvider = RealNmeaProvider();
 
-    final nmeaLocationDataSource =
-    NmeaLocationDataSource.withProvider(realNmeaProvider);
+    final nmeaLocationDataSource = NmeaLocationDataSource.withProvider(
+      realNmeaProvider,
+    );
 
     final nmeaTestInjector = NmeaTestInjector(realNmeaProvider);
 
@@ -15,17 +16,11 @@ void main() {
     final satelliteUpdates = <SatelliteInfo>[];
     final receivedSentences = <String>[];
 
-    nmeaLocationDataSource.onLocationChanged.listen(
-      locationUpdates.add,
-    );
+    nmeaLocationDataSource.onLocationChanged.listen(locationUpdates.add);
 
-    nmeaLocationDataSource.onSatellitesChanged.listen(
-      satelliteUpdates.add,
-    );
+    nmeaLocationDataSource.onSatellitesChanged.listen(satelliteUpdates.add);
 
-    nmeaLocationDataSource.onSentenceReceived.listen(
-      receivedSentences.add,
-    );
+    nmeaLocationDataSource.onSentenceReceived.listen(receivedSentences.add);
 
     await nmeaLocationDataSource.start();
 

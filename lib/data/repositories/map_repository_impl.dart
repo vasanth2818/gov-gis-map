@@ -8,10 +8,7 @@ class MapRepositoryImpl implements MapRepository {
   final ArcGISRemoteDataSource remoteDataSource;
   final OfflineMapDataSource offlineDataSource;
 
-  MapRepositoryImpl(
-      this.remoteDataSource,
-      this.offlineDataSource,
-      );
+  MapRepositoryImpl(this.remoteDataSource, this.offlineDataSource);
 
   @override
   Future<List<GisFeature>> getFeatures(String layerUrl) async {
@@ -37,42 +34,29 @@ class MapRepositoryImpl implements MapRepository {
 
   @override
   Future<GisFeature> addFeature(
-      String layerUrl,
-      GisFeature feature, {
-        FeatureTable? table,
-      }) async {
-    return await remoteDataSource.addFeature(
-      layerUrl,
-      feature,
-      table: table,
-    );
+    String layerUrl,
+    GisFeature feature, {
+    FeatureTable? table,
+  }) async {
+    return await remoteDataSource.addFeature(layerUrl, feature, table: table);
   }
-
 
   @override
   Future<void> updateFeature(
-      String layerUrl,
-      GisFeature feature, {
-        FeatureTable? table,
-      }) {
-    return remoteDataSource.updateFeature(
-      layerUrl,
-      feature,
-      table: table,
-    );
+    String layerUrl,
+    GisFeature feature, {
+    FeatureTable? table,
+  }) {
+    return remoteDataSource.updateFeature(layerUrl, feature, table: table);
   }
 
   @override
   Future<void> deleteFeature(
-      String layerUrl,
-      String featureId, {
-        FeatureTable? table,
-      }) {
-    return remoteDataSource.deleteFeature(
-      layerUrl,
-      featureId,
-      table: table,
-    );
+    String layerUrl,
+    String featureId, {
+    FeatureTable? table,
+  }) {
+    return remoteDataSource.deleteFeature(layerUrl, featureId, table: table);
   }
 
   @override

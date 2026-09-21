@@ -1,6 +1,7 @@
 import 'package:arcgis_maps/arcgis_maps.dart';
 import 'package:gov_gis_map/domain/entities/gis_feature.dart';
 import 'package:flutter/foundation.dart';
+
 import 'dart:io';
 import 'dart:developer';
 
@@ -10,7 +11,9 @@ class ArcGISRemoteDataSource {
   Future<ServiceFeatureTable> getFeatureTable(String url) async {
     final trimmedUrl = url.trim();
     if (trimmedUrl.isEmpty || !Uri.parse(trimmedUrl).isAbsolute) {
-      throw ArgumentError('Invalid URL provided to FeatureTable: "$trimmedUrl"');
+      throw ArgumentError(
+        'Invalid URL provided to FeatureTable: "$trimmedUrl"',
+      );
     }
 
     final cached = _tableCache[trimmedUrl];
@@ -30,14 +33,10 @@ class ArcGISRemoteDataSource {
       log('Credential count = ${credentials.length}');
 
       for (final credential in credentials) {
-        log(
-          'Credential type = ${credential.runtimeType}',
-        );
+        log('Credential type = ${credential.runtimeType}');
 
         if (credential is OAuthUserCredential) {
-          log(
-            'OAuth username = ${credential.username}',
-          );
+          log('OAuth username = ${credential.username}');
         }
       }
 
@@ -48,9 +47,7 @@ class ArcGISRemoteDataSource {
       final matchedCredential = ArcGISEnvironment
           .authenticationManager
           .arcGISCredentialStore
-          .getCredential(
-        uri: serviceUri,
-      );
+          .getCredential(uri: serviceUri);
 
       log('========== SERVICE CREDENTIAL MATCH ==========');
       log('Service URI       = $serviceUri');
@@ -72,9 +69,9 @@ class ArcGISRemoteDataSource {
   }
 
   Future<ArcGISFeatureTable> _resolveFeatureTable(
-      String url,
-      FeatureTable? table,
-      ) async {
+    String url,
+    FeatureTable? table,
+  ) async {
     if (table is ArcGISFeatureTable) {
       return table;
     }
@@ -89,10 +86,10 @@ class ArcGISRemoteDataSource {
   }
 
   Future<GisFeature> addFeature(
-      String url,
-      GisFeature feature, {
-        FeatureTable? table,
-      }) async {
+    String url,
+    GisFeature feature, {
+    FeatureTable? table,
+  }) async {
     try {
       final effectiveTable = await _resolveFeatureTable(url, table);
 
@@ -100,19 +97,18 @@ class ArcGISRemoteDataSource {
         await effectiveTable.load();
       }
 
-      log('==========================================');;
+      log('==========================================');
+      ;
       log('FEATURE TABLE URL       = $url');
       log('FEATURE TABLE NAME      = ${effectiveTable.tableName}');
       log('FEATURE TABLE USERNAME  = ${effectiveTable.username}');
-      log('FEATURE TABLE TYPE      = ${effectiveTable.runtimeType}');('==========================================');
+      log('FEATURE TABLE TYPE      = ${effectiveTable.runtimeType}');
+      ('==========================================');
 
       debugPrint(
         'Creating new ArcGIS feature in ${effectiveTable.runtimeType}...',
       );
 
-// ============================================================
-// CREATE FEATURE DEBUG
-// ============================================================
       debugPrint('========== CREATE FEATURE DEBUG ==========');
       debugPrint('Table type : ${effectiveTable.runtimeType}');
       debugPrint('Table hase application manifest');
@@ -233,10 +229,10 @@ class ArcGISRemoteDataSource {
   }
 
   Future<void> updateFeature(
-      String url,
-      GisFeature feature, {
-        FeatureTable? table,
-      }) async {
+    String url,
+    GisFeature feature, {
+    FeatureTable? table,
+  }) async {
     try {
       final effectiveTable = await _resolveFeatureTable(url, table);
 
@@ -252,15 +248,11 @@ class ArcGISRemoteDataSource {
       final features = result.features();
 
       if (features.isEmpty) {
-        throw Exception(
-          'Feature not found for $objectIdField = ${feature.id}',
-        );
+        throw Exception('Feature not found for $objectIdField = ${feature.id}');
       }
 
       final arcgisFeature = features.first as ArcGISFeature;
 
-      // queryFeatures can return minimally loaded service features.
-      // This API exists on ServiceFeatureTable, not on generic FeatureTable.
       if (effectiveTable is ServiceFeatureTable) {
         await effectiveTable.loadOrRefreshFeatures([arcgisFeature]);
       }
@@ -282,8 +274,8 @@ class ArcGISRemoteDataSource {
 
       final updateAttributes = Map<String, dynamic>.from(feature.attributes);
       updateAttributes.removeWhere(
-            (key, value) =>
-        excludedNames.contains(key) ||
+        (key, value) =>
+            excludedNames.contains(key) ||
             key.startsWith('esrignss_') ||
             key.startsWith('esrisnsr_'),
       );
@@ -303,10 +295,10 @@ class ArcGISRemoteDataSource {
   }
 
   Future<void> deleteFeature(
-      String url,
-      String featureId, {
-        FeatureTable? table,
-      }) async {
+    String url,
+    String featureId, {
+    FeatureTable? table,
+  }) async {
     try {
       final effectiveTable = await _resolveFeatureTable(url, table);
 

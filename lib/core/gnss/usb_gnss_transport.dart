@@ -12,7 +12,7 @@ import 'package:usb_serial/usb_serial.dart';
 /// NMEA parsing is handled by UsbNmeaProvider / ArcGIS.
 class UsbGnssTransport {
   final StreamController<Uint8List> _dataStreamController =
-  StreamController<Uint8List>.broadcast();
+      StreamController<Uint8List>.broadcast();
 
   UsbPort? _usbPort;
   StreamSubscription<Uint8List>? _usbSubscription;
@@ -36,8 +36,8 @@ class UsbGnssTransport {
       for (final device in devices) {
         debugPrint(
           'USB GNSS DEVICE: '
-              '${device.productName ?? device.deviceName} '
-              'VID=${device.vid} PID=${device.pid} ID=${device.deviceId}',
+          '${device.productName ?? device.deviceName} '
+          'VID=${device.vid} PID=${device.pid} ID=${device.deviceId}',
         );
       }
 
@@ -59,7 +59,7 @@ class UsbGnssTransport {
 
       debugPrint(
         'USB GNSS: Connecting to '
-            '${device.productName ?? device.deviceName}',
+        '${device.productName ?? device.deviceName}',
       );
 
       // usb_serial requests Android USB permission when create() is called
@@ -103,7 +103,7 @@ class UsbGnssTransport {
 
       // Listen before marking the connection ready.
       _usbSubscription = inputStream.listen(
-            (Uint8List data) {
+        (Uint8List data) {
           if (_disposed || _dataStreamController.isClosed) {
             return;
           }
@@ -124,7 +124,7 @@ class UsbGnssTransport {
 
       debugPrint(
         'USB GNSS: Connected to '
-            '${device.productName ?? device.deviceName}',
+        '${device.productName ?? device.deviceName}',
       );
 
       return true;
