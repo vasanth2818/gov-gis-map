@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:arcgis_maps/arcgis_maps.dart';
-import 'package:gov_gis_map/presentation/auth/pages/login_page.dart';
-import 'package:gov_gis_map/presentation/map/pages/map_page.dart';
-import 'package:gov_gis_map/presentation/map/pages/map_selection_page.dart';
+import 'package:gov_gis_map/features/map/presentation/auth/pages/login_page.dart';
+import 'package:gov_gis_map/features/map/presentation/map/pages/map_page.dart';
+import 'package:gov_gis_map/features/map/presentation/map/pages/map_selection_page.dart';
 
 class AppRouter {
   static const String login = '/';
