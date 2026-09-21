@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:gov_gis_map/app/router/app_router.dart';
-import 'package:gov_gis_map/presentation/auth/bloc/auth_bloc.dart';
+import 'package:gov_gis_map/features/map/presentation/auth/bloc/auth_bloc.dart';
 
 class LoginPage extends StatelessWidget {
   const LoginPage({super.key});

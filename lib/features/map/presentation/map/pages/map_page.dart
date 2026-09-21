@@ -141,9 +141,6 @@ class _MapPageState extends State<MapPage> {
     if (!mounted) return;
 
     try {
-      // ---------------------------------------------------------
-      // 1. Request Bluetooth permissions
-      // ---------------------------------------------------------
 
       if (await Permission.bluetoothScan.isDenied) {
         final scanStatus = await Permission.bluetoothScan.request();
@@ -181,9 +178,6 @@ class _MapPageState extends State<MapPage> {
         }
       }
 
-      // ---------------------------------------------------------
-      // 2. Check actual Bluetooth POWER state
-      // ---------------------------------------------------------
 
       final bluetoothEnabled = await _locationChannel.invokeMethod<bool>(
         'isBluetoothEnabled',
@@ -206,9 +200,6 @@ class _MapPageState extends State<MapPage> {
         return;
       }
 
-      // ---------------------------------------------------------
-      // 3. Bluetooth is ON → now use bluetooth_classic
-      // ---------------------------------------------------------
 
       final initialized = await _realNmeaProvider.initializeBluetooth();
 
@@ -226,9 +217,6 @@ class _MapPageState extends State<MapPage> {
         return;
       }
 
-      // ---------------------------------------------------------
-      // 4. Get paired GNSS devices
-      // ---------------------------------------------------------
 
       final pairedDevices = await _realNmeaProvider.getPairedDevices();
 
@@ -868,10 +856,6 @@ class _MapPageState extends State<MapPage> {
           'Popups: ${layerResult.popups.length}',
         );
 
-        // ============================================================
-        // 1. NORMAL FEATURE LAYER
-        // ============================================================
-
         if (layerResult.geoElements.isNotEmpty) {
           final element = layerResult.geoElements.first;
 
@@ -1187,124 +1171,6 @@ class _MapPageState extends State<MapPage> {
     bloc.add(BeginLocationUpdate());
   }
 
-  // void _captureLocation() {
-  //   final controller = _mapController;
-  //
-  //   if (controller == null) {
-  //     ScaffoldMessenger.of(context).showSnackBar(
-  //       const SnackBar(
-  //         content: Text('Map is not ready yet.'),
-  //       ),
-  //     );
-  //     return;
-  //   }
-  //
-  //   // ---------------------------------------------------------
-  //   // Always capture the latest location from the active
-  //   // LocationDataSource.
-  //   //
-  //   // Do NOT use map center as the feature geometry.
-  //   // For external DGPS/GNSS, the GNSS location is the
-  //   // authoritative capture position.
-  //   // ---------------------------------------------------------
-  //
-  //   final currentLocation =
-  //       _lastKnownLocation ?? controller.locationDisplay.location;
-  //
-  //   if (currentLocation == null) {
-  //     ScaffoldMessenger.of(context).showSnackBar(
-  //       const SnackBar(
-  //         content: Text(
-  //           'GNSS location is not available yet. Please wait for a location fix.',
-  //         ),
-  //       ),
-  //     );
-  //
-  //     debugPrint(
-  //       'LOCATION CAPTURE FAILED: No current GNSS/location fix available.',
-  //     );
-  //
-  //     return;
-  //   }
-  //
-  //   final position = currentLocation.position;
-  //
-  //   debugPrint('========== GNSS LOCATION CAPTURE ==========');
-  //   debugPrint('Receiver          : $_gnssReceiverName');
-  //   debugPrint('Fix Type          : $_fixType');
-  //   debugPrint('Position          : $position');
-  //   debugPrint('Source SR          : ${position.spatialReference}');
-  //   debugPrint(
-  //     'Horizontal Accuracy: ${currentLocation.horizontalAccuracy}',
-  //   );
-  //   debugPrint(
-  //     'Vertical Accuracy  : ${currentLocation.verticalAccuracy}',
-  //   );
-  //   debugPrint('============================================');
-  //
-  //   // ---------------------------------------------------------
-  //   // Convert the GNSS position to WGS84.
-  //   //
-  //   // Feature geometry and latitude/longitude attributes should
-  //   // use the same WGS84 position.
-  //   // ---------------------------------------------------------
-  //
-  //   final wgs84Geometry = GeometryEngine.project(
-  //     position,
-  //     outputSpatialReference: SpatialReference.wgs84,
-  //   );
-  //
-  //   if (wgs84Geometry is! ArcGISPoint) {
-  //     ScaffoldMessenger.of(context).showSnackBar(
-  //       const SnackBar(
-  //         content: Text(
-  //           'Unable to convert GNSS location to WGS84.',
-  //         ),
-  //       ),
-  //     );
-  //
-  //     debugPrint(
-  //       'LOCATION CAPTURE FAILED: WGS84 projection failed.',
-  //     );
-  //
-  //     return;
-  //   }
-  //
-  //   final wgs84Point = wgs84Geometry;
-  //
-  //   // ---------------------------------------------------------
-  //   // Build automatic GNSS attributes from the SAME location
-  //   // that will be used as feature geometry.
-  //   // ---------------------------------------------------------
-  //
-  //   final attributes =
-  //   _buildAutomaticLocationAttributes(currentLocation);
-  //
-  //   // Make absolutely sure the stored coordinates match
-  //   // the actual feature geometry.
-  //   attributes['esrignss_latitude'] = wgs84Point.y;
-  //   attributes['esrignss_longitude'] = wgs84Point.x;
-  //
-  //   debugPrint('========== CAPTURED GNSS POINT ==========');
-  //   debugPrint('Latitude          : ${wgs84Point.y}');
-  //   debugPrint('Longitude         : ${wgs84Point.x}');
-  //   debugPrint('Receiver          : $_gnssReceiverName');
-  //   debugPrint('Accuracy          : ${currentLocation.horizontalAccuracy}');
-  //   debugPrint('Geometry          : $wgs84Point');
-  //   debugPrint('==========================================');
-  //
-  //   // ---------------------------------------------------------
-  //   // Pass the WGS84 GNSS point, NOT the map center.
-  //   // ---------------------------------------------------------
-  //
-  //   context.read<MapBloc>().add(
-  //     LocationCaptured(
-  //       wgs84Point,
-  //       attributes: attributes,
-  //     ),
-  //   );
-  // }
-
   void _captureLocation() {
     final controller = _mapController;
 
@@ -1354,14 +1220,6 @@ class _MapPageState extends State<MapPage> {
     attributes['esrignss_latitude'] = wgs84Point.y;
     attributes['esrignss_longitude'] = wgs84Point.x;
 
-    debugPrint('========== SELECTED MAP LOCATION ==========');
-    debugPrint('Map SR              : ${center.spatialReference}');
-    debugPrint('Map X               : ${center.x}');
-    debugPrint('Map Y               : ${center.y}');
-    debugPrint('WGS84 Latitude      : ${wgs84Point.y}');
-    debugPrint('WGS84 Longitude     : ${wgs84Point.x}');
-    debugPrint('GNSS Location       : ${currentLocation?.position}');
-    debugPrint('============================================');
 
     context.read<MapBloc>().add(
       LocationCaptured(center, attributes: attributes),
@@ -1437,14 +1295,6 @@ class _MapPageState extends State<MapPage> {
     attributes['esrignss_latitude'] = wgs84Point.y;
     attributes['esrignss_longitude'] = wgs84Point.x;
 
-    debugPrint('----------------------------------------------');
-    debugPrint('CURRENT LOCATION FEATURE');
-    debugPrint('Latitude          : ${wgs84Point.y}');
-    debugPrint('Longitude         : ${wgs84Point.x}');
-    debugPrint('Receiver          : $_gnssReceiverName');
-    debugPrint('Horizontal Accuracy: ${currentLocation.horizontalAccuracy}');
-    debugPrint('Geometry          : $wgs84Point');
-    debugPrint('==============================================');
 
     context.read<MapBloc>().add(
       LocationCaptured(wgs84Point, attributes: attributes),
@@ -1544,37 +1394,19 @@ class _MapPageState extends State<MapPage> {
     final position = location.position;
 
     final attributes = <String, dynamic>{
-      // ---------------------------------------------------------
-      // Position
-      // ---------------------------------------------------------
       'esrignss_latitude': position.y,
       'esrignss_longitude': position.x,
 
-      // ---------------------------------------------------------
-      // Accuracy
-      // ---------------------------------------------------------
       'esrignss_h_rms': _finiteOrNull(location.horizontalAccuracy),
 
       'esrignss_v_rms': _finiteOrNull(location.verticalAccuracy),
 
-      // ---------------------------------------------------------
-      // Movement
-      // ---------------------------------------------------------
       'esrignss_speed': _finiteOrNull(location.speed * 3.6),
 
       'esrignss_direction': _finiteOrNull(location.course),
 
-      // ---------------------------------------------------------
-      // Fix time
-      // ---------------------------------------------------------
       'esrignss_fixdatetime': location.timestamp,
 
-      // ---------------------------------------------------------
-      // Position source
-      //
-      // 2 = Device GPS
-      // 3 = External GNSS / NMEA
-      // ---------------------------------------------------------
       'esrignss_positionsourcetype': location is NmeaLocation ? 3 : 2,
 
       // ---------------------------------------------------------
@@ -1618,74 +1450,10 @@ class _MapPageState extends State<MapPage> {
       });
     }
 
-    // ---------------------------------------------------------
-    // Remove unavailable values.
-    // ---------------------------------------------------------
-
     attributes.removeWhere((key, value) => value == null);
 
     return attributes;
   }
-
-  // Map<String, dynamic> _buildAutomaticLocationAttributes(ArcGISLocation location,) {
-  //   final position = location.position;
-  //
-  //   final attributes = <String, dynamic>{
-  //     // Position
-  //     'esrignss_latitude': position.y,
-  //     'esrignss_longitude': position.x,
-  //
-  //     // Accuracy
-  //     'esrignss_h_rms': _finiteOrNull(location.horizontalAccuracy),
-  //     'esrignss_v_rms': _finiteOrNull(location.verticalAccuracy),
-  //
-  //     // Movement
-  //     'esrignss_speed': _finiteOrNull(location.speed * 3.6),
-  //     'esrignss_direction': _finiteOrNull(location.course),
-  //
-  //     // Fix time
-  //     'esrignss_fixdatetime': location.timestamp,
-  //
-  //     // Position source
-  //     'esrignss_positionsourcetype': location is NmeaLocation ? 3 : 2,
-  //
-  //     // Receiver
-  //     'esrignss_receiver': location is NmeaLocation
-  //         ? 'Mock GNSS'
-  //         : 'Device GPS',
-  //   };
-  //
-  //   // NMEA-specific metadata
-  //   if (location is NmeaLocation) {
-  //     attributes.addAll({
-  //       // Altitude
-  //       'esrignss_altitude': _finiteOrNull(location.heightAboveGeoid),
-  //
-  //       // DOP
-  //       'esrignss_pdop': _finiteOrNull(location.pdop),
-  //
-  //       'esrignss_hdop': _finiteOrNull(location.hdop),
-  //
-  //       'esrignss_vdop': _finiteOrNull(location.vdop),
-  //
-  //       // DGPS information
-  //       'esrignss_correctionage': _finiteOrNull(location.dgpsAge),
-  //
-  //       'esrignss_stationid': location.referenceStationId,
-  //
-  //       // Satellite count
-  //       'esrignss_numsats': location.satellites.length,
-  //
-  //       // Fix type
-  //       'esrignss_fixtype': _getNmeaFixTypeCode(location.fixType),
-  //     });
-  //   }
-  //
-  //   // Remove unavailable values.
-  //   attributes.removeWhere((key, value) => value == null);
-  //
-  //   return attributes;
-  // }
 
   double? _finiteOrNull(double value) {
     return value.isFinite ? value : null;
@@ -2677,16 +2445,6 @@ class _MapPageState extends State<MapPage> {
     );
   }
 
-  void _testNmeaPipeline() {
-    // final testNmeaData = [
-    //   // Example NMEA sentences for testing
-    //   '$GPGGA,123519,4807.038,N,01131.000,E,1,08,0.9,545.4,M,46.9,M,,*47',
-    //   '$GPGSA,A,3,04,05,09,12,24,25,29,31,,,,,1.8,1.0,1.5*33',
-    //   '$GPRMC,123519,A,4807.038,N,01131.000,E,022.4,084.4,230394,003.1,W*6A',
-    // ];
-
-    //_realNmeaProvider.injectTestNmeaData(testNmeaData);
-  }
 }
 
 class _FeatureCollectionForm extends StatefulWidget {

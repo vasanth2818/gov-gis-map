@@ -13,22 +13,16 @@ class OfflineMapDataSource {
     try {
       final offlineMapTask = OfflineMapTask.withOnlineMap(onlineMap);
 
-      // Optimization: Limit the scale range to reduce basemap tile count.
-      // If we don't specify, it might try to download all LODs.
       final parameters = await offlineMapTask
           .createDefaultGenerateOfflineMapParameters(
             areaOfInterest: areaOfInterest,
             minScale: currentScale != null ? (currentScale * 2) : 0,
             maxScale: 250, // High detail, but prevents downloading extreme LODs if unnecessary
           );
-      // The offline map must be backed by sync-enabled geodatabases
-      // because the app supports offline editing and manual synchronization.
       parameters.updateMode =
           GenerateOfflineMapUpdateMode.syncWithFeatureServices;
       parameters.includeBasemap =
           true; // Enable basemap download for offline usability
-
-      // Include attachments for editable layers and upload newly-created
       // attachments when the offline edits are synchronized.
       parameters.returnLayerAttachmentOption =
           ReturnLayerAttachmentOption.editableLayers;
@@ -90,7 +84,6 @@ class OfflineMapDataSource {
       final syncTask = OfflineMapSyncTask.withMap(map);
       final parameters = await syncTask.createDefaultOfflineMapSyncParameters();
 
-      // Bidirectional is the SDK default and allows both local uploads and
       // server-side updates to be applied.
       parameters.syncDirection = SyncDirection.bidirectional;
 

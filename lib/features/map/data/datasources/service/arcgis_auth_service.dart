@@ -36,11 +36,6 @@ class ArcGISAuthService {
 
     await portal.load();
 
-    log('========== PORTAL AUTH DEBUG ==========');
-    log('Portal user     = ${portal.user?.username}');
-    log('Portal URL      = ${portal.uri}');
-    log('=======================================');
-
     log('AUTHENTICATED USER = ${portal.user?.username}');
 
     return credential;

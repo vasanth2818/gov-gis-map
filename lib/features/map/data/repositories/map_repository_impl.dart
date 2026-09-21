@@ -1,8 +1,8 @@
 import 'package:arcgis_maps/arcgis_maps.dart';
-import 'package:gov_gis_map/data/datasources/local/offline_map_datasource.dart';
-import 'package:gov_gis_map/data/datasources/remote/arcgis_remote_datasource.dart';
-import 'package:gov_gis_map/domain/entities/gis_feature.dart';
-import 'package:gov_gis_map/domain/repositories/map_repository.dart';
+import 'package:gov_gis_map/features/map/data/datasources/local/offline_map_datasource.dart';
+import 'package:gov_gis_map/features/map/data/datasources/remote/arcgis_remote_datasource.dart';
+import 'package:gov_gis_map/features/map/domain/entities/gis_feature.dart';
+import 'package:gov_gis_map/features/map/domain/repositories/map_repository.dart';
 
 class MapRepositoryImpl implements MapRepository {
   final ArcGISRemoteDataSource remoteDataSource;

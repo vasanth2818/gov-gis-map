@@ -4,11 +4,11 @@ import 'package:arcgis_maps/arcgis_maps.dart';
 import 'package:arcgis_maps_toolkit/arcgis_maps_toolkit.dart';
 import 'package:gov_gis_map/app/router/app_router.dart';
 import 'package:gov_gis_map/app/theme/app_theme.dart';
-import 'package:gov_gis_map/data/datasources/local/offline_map_datasource.dart';
-import 'package:gov_gis_map/data/datasources/remote/arcgis_remote_datasource.dart';
-import 'package:gov_gis_map/data/repositories/map_repository_impl.dart';
-import 'package:gov_gis_map/presentation/auth/bloc/auth_bloc.dart';
-import 'package:gov_gis_map/presentation/map/bloc/map_bloc.dart';
+import 'package:gov_gis_map/features/map/data/datasources/local/offline_map_datasource.dart';
+import 'package:gov_gis_map/features/map/data/datasources/remote/arcgis_remote_datasource.dart';
+import 'package:gov_gis_map/features/map/data/repositories/map_repository_impl.dart';
+import 'package:gov_gis_map/features/map/presentation/auth/bloc/auth_bloc.dart';
+import 'package:gov_gis_map/features/map/presentation/map/bloc/map_bloc.dart';
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});

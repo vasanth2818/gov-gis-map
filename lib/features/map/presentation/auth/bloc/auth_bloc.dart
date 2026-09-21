@@ -1,7 +1,7 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:equatable/equatable.dart';
 import 'package:arcgis_maps/arcgis_maps.dart';
-import 'package:gov_gis_map/data/datasources/service/arcgis_auth_service.dart';
+import 'package:gov_gis_map/features/map/data/datasources/service/arcgis_auth_service.dart';
 
 // Events
 abstract class AuthEvent extends Equatable {
@@ -37,8 +37,6 @@ class AuthError extends AuthState {
 }
 
 // BLoC
-// BLoC
-
 class AuthBloc extends Bloc<AuthEvent, AuthState> {
   final ArcGISAuthService _authService;
 

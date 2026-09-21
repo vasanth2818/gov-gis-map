@@ -25,9 +25,7 @@ class MockNmeaProvider implements NmeaDataProvider {
     debugPrint('MOCK NMEA: Simulation started');
 
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      // ---------------------------------------------------------
       // 1. Move simulated position
-      // ---------------------------------------------------------
       _lat += 0.0001;
       _lon += 0.0001;
 
@@ -38,9 +36,7 @@ class MockNmeaProvider implements NmeaDataProvider {
           '${now.minute.toString().padLeft(2, '0')}'
           '${now.second.toString().padLeft(2, '0')}.000';
 
-      // ---------------------------------------------------------
       // 2. Convert latitude to DDMM.MMMM
-      // ---------------------------------------------------------
       final latAbs = _lat.abs();
       final latDeg = latAbs.truncate();
       final latMin = (latAbs - latDeg) * 60;
@@ -50,10 +46,7 @@ class MockNmeaProvider implements NmeaDataProvider {
           '${latMin.toStringAsFixed(4).padLeft(7, '0')}';
 
       final latDir = _lat >= 0 ? 'N' : 'S';
-
-      // ---------------------------------------------------------
       // 3. Convert longitude to DDDMM.MMMM
-      // ---------------------------------------------------------
       final lonAbs = _lon.abs();
       final lonDeg = lonAbs.truncate();
       final lonMin = (lonAbs - lonDeg) * 60;
@@ -64,7 +57,6 @@ class MockNmeaProvider implements NmeaDataProvider {
 
       final lonDir = _lon >= 0 ? 'E' : 'W';
 
-      // ---------------------------------------------------------
       // 4. GPGGA
       //
       // Fix quality:
@@ -72,7 +64,6 @@ class MockNmeaProvider implements NmeaDataProvider {
       //
       // Keep normal GPS for now.
       // We will change this to RTK Fixed later.
-      // ---------------------------------------------------------
       final ggaBody =
           'GPGGA,'
           '$timeStr,'

@@ -1,5 +1,5 @@
 import 'package:arcgis_maps/arcgis_maps.dart';
-import 'package:gov_gis_map/domain/entities/gis_feature.dart';
+import 'package:gov_gis_map/features/map/domain/entities/gis_feature.dart';
 import 'package:flutter/foundation.dart';
 
 import 'dart:io';
@@ -123,11 +123,9 @@ class ArcGISRemoteDataSource {
         debugPrint('Z             : ${point.z}');
       }
 
-      debugPrint('==========================================');
 
       Geometry? geometry = feature.geometry;
 
-      debugPrint('========== GEOMETRY NORMALIZATION ==========');
       debugPrint('Table hasZ : ${effectiveTable.hasZ}');
       debugPrint('Geometry hasZ : ${geometry?.hasZ}');
       debugPrint('Geometry type : ${geometry.runtimeType}');
@@ -147,7 +145,6 @@ class ArcGISRemoteDataSource {
       }
 
       debugPrint('Final geometry hasZ : ${geometry?.hasZ}');
-      debugPrint('============================================');
 
       final arcgisFeature = effectiveTable.createFeature(
         attributes: feature.attributes,
@@ -191,11 +188,9 @@ class ArcGISRemoteDataSource {
 
         final editResult = editResults.first;
 
-        debugPrint('========== ADD FEATURE RESULT ==========');
         debugPrint('Object ID: ${editResult.objectId}');
         debugPrint('Global ID: ${editResult.globalId}');
         debugPrint('Has errors: ${editResult.completedWithErrors}');
-        debugPrint('========================================');
 
         if (editResult.completedWithErrors) {
           throw editResult.error ??

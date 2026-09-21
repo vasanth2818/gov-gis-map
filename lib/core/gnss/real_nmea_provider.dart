@@ -195,14 +195,6 @@ class RealNmeaProvider implements NmeaDataProvider {
     return;
   }
 
-  // Future<void> _stopListening() async {
-  //   await _dataSubscription?.cancel();
-  //   _dataSubscription = null;
-  //
-  //   await _statusSubscription?.cancel();
-  //   _statusSubscription = null;
-  // }
-
   void _startListening() {
     if (_dataSubscription == null) {
       _dataSubscription = _bluetooth.onDeviceDataReceived().listen(
@@ -236,46 +228,6 @@ class RealNmeaProvider implements NmeaDataProvider {
     }
   }
 
-  // void _startListening() {
-  //   _dataSubscription?.cancel();
-  //
-  //   _dataSubscription = _bluetooth.onDeviceDataReceived().listen(
-  //     _handleBluetoothData,
-  //     onError: (error) {
-  //       debugPrint('GNSS Bluetooth data error: $error');
-  //       _connected = false;
-  //     },
-  //     onDone: () {
-  //       debugPrint('GNSS Bluetooth data stream closed');
-  //       _connected = false;
-  //     },
-  //   );
-  //
-  //   _statusSubscription?.cancel();
-  //
-  //   _statusSubscription = _bluetooth.onDeviceStatusChanged().listen(
-  //         (status) {
-  //       debugPrint('GNSS Bluetooth status: $status');
-  //
-  //       if (status == Device.disconnected) {
-  //         _connected = false;
-  //       } else if (status == Device.connected) {
-  //         _connected = true;
-  //       }
-  //     },
-  //     onError: (error) {
-  //       debugPrint('GNSS Bluetooth status error: $error');
-  //     },
-  //   );
-  // }
-
-  /// Bluetooth packets can contain:
-  ///
-  /// 1. One complete NMEA sentence
-  /// 2. Multiple sentences
-  /// 3. Half of a sentence
-  ///
-  /// Therefore we MUST buffer the incoming bytes.
   void _handleBluetoothData(Uint8List data) {
     if (_disposed || data.isEmpty) {
       return;
@@ -332,21 +284,7 @@ class RealNmeaProvider implements NmeaDataProvider {
     }
   }
 
-  // Future<void> disconnect() async {
-  //   try {
-  //     await _stopListening();
-  //
-  //     if (_connected) {
-  //       await _bluetooth.disconnect();
-  //     }
-  //   } catch (e) {
-  //     debugPrint('GNSS disconnect error: $e');
-  //   } finally {
-  //     _connected = false;
-  //     _buffer.clear();
-  //   }
-  // }
-  void dispose() {
+    void dispose() {
     if (_disposed) {
       return;
     }

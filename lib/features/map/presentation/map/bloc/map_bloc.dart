@@ -3,8 +3,8 @@ import 'dart:io';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:equatable/equatable.dart';
 import 'package:arcgis_maps/arcgis_maps.dart';
-import 'package:gov_gis_map/domain/entities/gis_feature.dart';
-import 'package:gov_gis_map/domain/repositories/map_repository.dart';
+import 'package:gov_gis_map/features/map/domain/entities/gis_feature.dart';
+import 'package:gov_gis_map/features/map/domain/repositories/map_repository.dart';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -490,11 +490,9 @@ class MapBloc extends Bloc<MapEvent, MapState> {
 
       final table = current.targetLayer?.featureTable;
 
-      debugPrint('========== LOCATION CAPTURE ==========');
       debugPrint('Geometry type : ${geometry.runtimeType}');
       debugPrint('Feature table : ${table?.tableName}');
       debugPrint('Table hasZ    : ${table?.hasZ}');
-      debugPrint('======================================');
 
       if (table != null && table.hasZ) {
         final currentZ = geometry is ArcGISPoint ? geometry.z : null;
@@ -714,11 +712,9 @@ class MapBloc extends Bloc<MapEvent, MapState> {
           }
         }
 
-        debugPrint('========== COPY FEATURE ==========');
         debugPrint('Original OBJECTID : ${event.feature.id}');
         debugPrint('Copied attributes : ${copiedAttributes.length}');
         debugPrint('Copied geometry   : ${event.feature.geometry}');
-        debugPrint('==================================');
 
         emit(
           CollectionState(
@@ -758,41 +754,6 @@ class MapBloc extends Bloc<MapEvent, MapState> {
         );
       }
     });
-
-    // on<CopyFeatureRequested>((event, emit) async {
-    //   try {
-    //     final table = event.layer.featureTable!;
-    //     await table.load();
-    //     final editableFields = _getCollectionFields(table);
-    //
-    //     final newAttributes = <String, dynamic>{};
-    //     for (var field in editableFields) {
-    //       if (event.feature.attributes.containsKey(field.name)) {
-    //         newAttributes[field.name] = event.feature.attributes[field.name];
-    //       }
-    //     }
-    //
-    //     emit(CollectionState(
-    //       mode: CollectionMode.fillingForm,
-    //       targetLayer: event.layer,
-    //       editableFields: editableFields,
-    //       draftFeature: GisFeature(
-    //         id: '',
-    //         geometry: event.feature.geometry,
-    //         attributes: newAttributes,
-    //       ),
-    //       isEdit: false,
-    //       isOfflineMode: state.isOfflineMode,
-    //       offlineMapPath: state.offlineMapPath,
-    //     ));
-    //   } catch (e) {
-    //     emit(MapError('Failed to copy feature: $e',
-    //       isOfflineMode: state.isOfflineMode,
-    //       offlineMapPath: state.offlineMapPath,
-    //     ));
-    //   }
-    // });
-
     on<CollectHereRequested>((event, emit) async {
       try {
         final table = event.layer.featureTable!;
@@ -826,18 +787,8 @@ class MapBloc extends Bloc<MapEvent, MapState> {
         final newAttributes = <String, dynamic>{};
 
         // Collect Here should have EMPTY business/user fields.
-        // But latitude/longitude should represent the new feature location.
         newAttributes['esrignss_latitude'] = latitude;
         newAttributes['esrignss_longitude'] = longitude;
-
-        debugPrint('========== COLLECT HERE ==========');
-        debugPrint('Source OBJECTID : ${event.feature.id}');
-        debugPrint('Latitude       : ${latitude.toStringAsFixed(6)}');
-        debugPrint('Longitude      : ${longitude.toStringAsFixed(6)}');
-        debugPrint('Other fields   : EMPTY');
-        debugPrint('Update Point   : DISABLED');
-        debugPrint('===================================');
-
         emit(
           CollectionState(
             mode: CollectionMode.fillingForm,
@@ -851,8 +802,6 @@ class MapBloc extends Bloc<MapEvent, MapState> {
             ),
 
             isEdit: false,
-
-            // Collect Here = same location.
             // Do NOT show UPDATE POINT.
             isNewFeature: false,
 
@@ -873,34 +822,6 @@ class MapBloc extends Bloc<MapEvent, MapState> {
         );
       }
     });
-
-    // on<CollectHereRequested>((event, emit) async {
-    //   try {
-    //     final table = event.layer.featureTable!;
-    //     await table.load();
-    //     final editableFields = _getCollectionFields(table);
-    //
-    //     emit(CollectionState(
-    //       mode: CollectionMode.fillingForm,
-    //       targetLayer: event.layer,
-    //       editableFields: editableFields,
-    //       draftFeature: GisFeature(
-    //         id: '',
-    //         geometry: event.feature.geometry,
-    //         attributes: {},
-    //       ),
-    //       isEdit: false,
-    //       isOfflineMode: state.isOfflineMode,
-    //       offlineMapPath: state.offlineMapPath,
-    //     ));
-    //   } catch (e) {
-    //     emit(MapError('Failed to collect here: $e',
-    //       isOfflineMode: state.isOfflineMode,
-    //       offlineMapPath: state.offlineMapPath,
-    //     ));
-    //   }
-    // });
-
     on<DeleteFeatureRequested>((event, emit) async {
       try {
         final table = event.layer.featureTable;
@@ -985,15 +906,7 @@ class MapBloc extends Bloc<MapEvent, MapState> {
           );
         });
 
-        debugPrint('========== OFFLINE DOWNLOAD STARTED ==========');
-
         final result = await job.run();
-
-        debugPrint('========== OFFLINE DOWNLOAD FINISHED ==========');
-        debugPrint('HAS ERRORS: ${result.hasErrors}');
-        debugPrint('LAYER ERRORS COUNT: ${result.layerErrors.length}');
-        debugPrint('TABLE ERRORS COUNT: ${result.tableErrors.length}');
-
         for (final entry in result.layerErrors.entries) {
           debugPrint(
             'OFFLINE LAYER ERROR -> '
@@ -1189,17 +1102,6 @@ class MapBloc extends Bloc<MapEvent, MapState> {
   }
 
   void _debugPrintFeatureSnapshot(String stage, GisFeature feature) {
-    debugPrint('');
-    debugPrint('==================================================');
-    debugPrint('             GIS FEATURE DEBUG');
-    debugPrint('==================================================');
-
-    debugPrint('STAGE        : $stage');
-    debugPrint('FEATURE ID   : ${feature.id}');
-    debugPrint('ATTACHMENTS  : ${feature.attachments.length}');
-
-    debugPrint('');
-    debugPrint('---------------- GEOMETRY ----------------');
 
     final geometry = feature.geometry;
 
@@ -1242,9 +1144,6 @@ class MapBloc extends Bloc<MapEvent, MapState> {
       }
     }
 
-    debugPrint('');
-    debugPrint('==================================================');
-    debugPrint('');
   }
 
   String? _validateRequiredFields(CollectionState state) {

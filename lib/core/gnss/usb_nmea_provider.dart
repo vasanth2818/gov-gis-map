@@ -26,11 +26,6 @@ class UsbNmeaProvider implements NmeaDataProvider {
 
   bool get isStarted => _started;
 
-  /// Starts the selected USB GNSS receiver.
-  ///
-  /// This is intentionally called AFTER NmeaLocationDataSource.start().
-  /// That way ArcGIS has already subscribed to nmeaData before the first
-  /// NMEA sentence arrives.
   Future<bool> start(UsbDevice device) async {
     if (_disposed) {
       return false;

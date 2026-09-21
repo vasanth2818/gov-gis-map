@@ -4,12 +4,6 @@ import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:usb_serial/usb_serial.dart';
 
-/// USB Serial transport for external GNSS receivers that expose
-/// NMEA 0183 over a USB serial interface.
-///
-/// Transport only:
-/// USB device -> raw bytes.
-/// NMEA parsing is handled by UsbNmeaProvider / ArcGIS.
 class UsbGnssTransport {
   final StreamController<Uint8List> _dataStreamController =
       StreamController<Uint8List>.broadcast();

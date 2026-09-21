@@ -1,5 +1,5 @@
 import 'package:arcgis_maps/arcgis_maps.dart';
-import 'package:gov_gis_map/domain/entities/gis_feature.dart';
+import 'package:gov_gis_map/features/map/domain/entities/gis_feature.dart';
 
 abstract class MapRepository {
   Future<List<GisFeature>> getFeatures(String layerUrl);
